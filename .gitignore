@@ -1,3 +1,9 @@
 /.lake
 .DS_Store
 .claude
+*.log
+*.pdf
+*.fls
+*.fdb_latexmk
+*.aux
+*.synctex.gz
