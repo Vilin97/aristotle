@@ -1,0 +1,199 @@
+\documentclass{article}
+\usepackage{amsmath,amssymb,amsthm}
+
+% macros used
+\newcommand{\fjt}{\left\lfloor\frac{j}{2}\right\rfloor}
+\newcommand{\cjt}{\left\lceil\frac{j}{2}\right\rceil}
+\newcommand{\fnt}{\left\lfloor\frac{n}{2}\right\rfloor}
+\newcommand{\cnt}{\left\lceil\frac{n}{2}\right\rceil}
+\newcommand{\fcntt}{\left\lfloor\frac{\left\lceil\frac{n}{2}\right\rceil}{2}\right\rfloor}
+\newcommand{\ffntt}{\left\lfloor\frac{\left\lfloor\frac{n}{2}\right\rfloor}{2}\right\rfloor}
+\newcommand{\cfntt}{\left\lceil\frac{\left\lfloor\frac{n}{2}\right\rfloor}{2}\right\rceil}
+\newcommand{\ccntt}{\left\lceil\frac{\left\lceil\frac{n}{2}\right\rceil}{2}\right\rceil}
+
+\newtheorem{lemma}{Lemma}
+\newtheorem{theorem}{Theorem}
+\newtheorem{axiom}{Axiom}
+\numberwithin{equation}{section}
+
+\begin{document}
+
+\section{Setup}
+
+Work in $S_n$ with generators
+\[
+\delta=(12),\qquad r=(12\dots n),\qquad r^{-1}=(1n\dots 2).
+\]
+Let $\Gamma$ be the Cayley graph of $S_n$ with respect to $\{\delta,r,r^{-1}\}$ and let
+$\textup{dist}$ be the word metric.
+
+Fix one-line notation $[\pi_1\ \dots\ \pi_n]$.
+Let
+\[
+r=[2\ 3\ \dots\ n\ 1],\qquad s=[n\ n-1\ \dots\ 1].
+\]
+
+\subsection*{Inversion counter (placeholder)}
+The original proof uses an inversion-counting potential $\mathrm{Inv}(\cdot)$
+relative to a certain cyclic/linear order; it is not fully formalized in the source.
+We expose exactly what is needed as axioms/lemmas to be proved separately.
+
+\begin{axiom}[Local effect of $\delta$ on inversions]\label{ax:delta-inv}
+There exists a function $\mathrm{Inv}:S_n\to \mathbb{Z}_{\ge 0}$ such that
+for all $\pi\in S_n$,
+\[
+\mathrm{Inv}(\pi\delta) \le \mathrm{Inv}(\pi)+1
+\quad\text{and}\quad
+\mathrm{Inv}(\pi\delta) \ge \mathrm{Inv}(\pi)-1.
+\]
+\end{axiom}
+
+\begin{axiom}[Shifts preserve inversions]\label{ax:r-inv}
+For all $\pi\in S_n$ and all integers $k$,
+\[
+\mathrm{Inv}(\pi r^k)=\mathrm{Inv}(\pi).
+\]
+\end{axiom}
+
+\begin{axiom}[Target inversion gap for a $j$-prefix reversal]\label{ax:inv-gap}
+In the situation of Lemma~\ref{lemma:reversal} below, one has
+\[
+\mathrm{Inv}(\xi)-\mathrm{Inv}(\pi)=\frac{j(j-1)}{2}.
+\]
+\end{axiom}
+
+\begin{axiom}[No adjacent $\delta$ in a reduced word]\label{ax:delta-delta}
+In any shortest word for an element (or between two vertices), $\delta$ never
+appears twice consecutively (since $\delta^2=()$).
+Equivalently, between two $\delta$'s there is at least one $r^{\pm 1}$.
+\end{axiom}
+
+\begin{axiom}[Lee distance on $\langle r\rangle$]\label{ax:lee}
+For $0\le a,b\le n-1$,
+\[
+\textup{dist}(r^a,r^b)=\min(|a-b|,\ |n-(a-b)|).
+\]
+\end{axiom}
+
+\section{Main lemma: explicit distances for a prefix reversal}
+
+\begin{lemma}\label{lemma:reversal}
+Let
+\[
+\pi = [\pi_1 \ \dots\ \pi_{j-1}\ \pi_j\ \pi_{j+1}\ \dots\ \pi_n],\qquad
+\xi = [\pi_{j}\ \pi_{j-1}\ \dots\ \pi_{1}\ \pi_{j+1}\ \dots\ \pi_n],
+\]
+where \(2 \le j \le \cnt\) and \(n \ge 3\).
+Then:
+\begin{align}
+\textup{dist}(\pi,\xi r^{\fjt-1}) &= j(j-1)-1, \tag{I}\label{eq:I}\\
+\textup{dist}(\pi r^{j-2},\xi r^{\cjt-1}) &= j(j-1)-1, \tag{II}\label{eq:II}\\
+\textup{dist}(\pi r^{\fjt-1},\xi) &= j(j-1)-1, \tag{III}\label{eq:III}\\
+\textup{dist}(\pi r^{\cjt-1},\xi r^{j-2}) &= j(j-1)-1. \tag{IV}\label{eq:IV}
+\end{align}
+\end{lemma}
+
+\begin{proof}
+We prove (I); (II)--(IV) are analogous by symmetry (replace $r$ with $r^{-1}$
+and/or shift the basepoint).
+
+Write $l=j+1-k$. For each $k\in\{1,\dots,\fjt\}$ we aim to swap the pair
+$\pi_k$ and $\pi_l$ (with $k<l$) using the word
+\begin{equation}\label{eq:Aword}
+(\delta r)^{l-k-1}\ \delta\ (r^{-1}\delta)^{l-k-1}.
+\end{equation}
+This word has length $4(l-k-1)+1$.
+
+\paragraph{Upper bound.}
+Starting from $\pi r^{k-1}$ (so that $\pi_k$ is at the first position),
+apply \eqref{eq:Aword}. This swaps $\pi_k$ and $\pi_l$ (placeholder: verify by computation
+in $S_n$), and does not affect the already-fixed pairs when done in the order
+$k=1,2,\dots,\fjt$ (placeholder: verify commutation/interaction constraints).
+Between successive pair-swaps one needs at most one shift, hence $\fjt-1$ shifts total.
+Therefore
+\[
+\textup{dist}(\pi,\xi r^{\fjt-1})
+\le
+\sum_{k=1}^{\fjt} \bigl(4(l-k-1)+1\bigr) + (\fjt-1),
+\quad l=j+1-k.
+\]
+A direct simplification of the RHS yields $j(j-1)-1$.
+
+\paragraph{Lower bound.}
+By Axioms~\ref{ax:delta-inv}--\ref{ax:r-inv}--\ref{ax:inv-gap},
+to go from $\pi$ to a permutation with the reversed $j$-block, one must increase
+$\mathrm{Inv}$ by $\frac{j(j-1)}{2}$, and each $\delta$ can change $\mathrm{Inv}$
+by at most $1$. Hence any such word uses at least $\frac{j(j-1)}{2}$ occurrences of $\delta$.
+By Axiom~\ref{ax:delta-delta}, between consecutive $\delta$'s there is at least one $r^{\pm 1}$,
+so the word length is at least $2\cdot \frac{j(j-1)}{2}-1=j(j-1)-1$.
+Combining with the upper bound gives equality, proving (I).
+\end{proof}
+
+\section{Distance from shifted reversal to identity}
+
+\begin{theorem}\label{thm:dist-sr}
+Let \(s=[n\ n-1\ \dots\ 1]\), \(r=[2\ 3\ \dots\ n\ 1]\) in \(S_n\), and \(n\ge 4\).
+For \(i\in\{1,2,\dots,n\}\),
+\[
+\textup{dist}(sr^{n-i},())
+=
+\cnt(\cnt-1)-1 + \fnt(\fnt-1)-1
++
+\begin{cases}
+\fnt + 1, & i=1,\\[4pt]
+\fnt - i + 4, & 2 \le i \le \fnt+2,\\[4pt]
+i - \cnt, & \cnt+2 \le i \le n.
+\end{cases}
+\]
+\end{theorem}
+
+\begin{proof}
+The source proof reduces $\textup{dist}(sr^{n-i},())$ to:
+(i) two applications of Lemma~\ref{lemma:reversal} to reverse two blocks of lengths
+$\fnt$ and $\cnt$, plus (ii) two shifts between the reversals, plus (iii) a final Lee
+distance inside $\langle r\rangle$.
+
+Concretely, define two contiguous subsequences $\mathrm{F}_1$ (length $\fnt$) and
+$\mathrm{F}_2$ (length $\cnt$) in the cyclic string $n,n-1,\dots,1$ determined by a parameter
+$m\in\{0,1,\dots,n-1\}$ as in the source. Reversing both blocks sends $sr^{-m}$ to an element
+of $\mathrm{Orb}(())=\{r^t:t\in\mathbb{Z}_n\}$ (placeholder: prove this mapping to the orbit).
+
+Choose $m\in\{\cfntt-1,\ \ffntt-1\}$ so that the first reversal is one of the four cases
+in Lemma~\ref{lemma:reversal} without extra shifts. Apply Lemma~\ref{lemma:reversal} with
+$j=\fnt$ to reverse $\mathrm{F}_1$, then apply exactly two shifts, then apply Lemma~\ref{lemma:reversal}
+with $j=\cnt$ to reverse $\mathrm{F}_2$. This yields an explicit power $r^t$ depending on $m$:
+\[
+t=
+\begin{cases}
+\cfntt-1+\fcntt-1,& m=\cfntt-1,\\
+\ffntt-1+\ccntt-1,& m=\ffntt-1.
+\end{cases}
+\]
+Therefore
+\[
+sr^{n-i}\cdot sr^{t}=r^{t-n+i}.
+\]
+Now apply Axiom~\ref{ax:lee} to compute $\textup{dist}(r^{t-n+i},())$ and take the minimum
+over the two choices of $m$, then simplify the resulting piecewise expression; this matches the
+stated formula.
+\end{proof}
+
+\section{Diameter lower bound}
+
+\begin{theorem}\label{thm:diam-lb}
+A lower bound for the diameter of the Cayley graph of \(S_n\) generated by
+\((12)\), \((12\dots n)\), \((1n\dots 2)\) is
+\[
+\textup{diam}(\Gamma)\ \ge\ \frac{n(n-1)}{2}.
+\]
+\end{theorem}
+
+\begin{proof}
+By Theorem~\ref{thm:dist-sr} with $i=2$, $\textup{dist}(sr^{n-2},())$ has leading term
+$\cnt(\cnt-1)-1+\fnt(\fnt-1)-1=\frac{n(n-1)}{2}-2$ plus an additive term that makes the total
+at least $\frac{n(n-1)}{2}$ (after the piecewise simplification in Theorem~\ref{thm:dist-sr}).
+Hence some pair of vertices is at distance at least $\frac{n(n-1)}{2}$, so
+$\textup{diam}(\Gamma)\ge \frac{n(n-1)}{2}$.
+\end{proof}
+
+\end{document}

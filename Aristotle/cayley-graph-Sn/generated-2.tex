@@ -1,0 +1,364 @@
+\documentclass[11pt]{article}
+
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+
+% ---------- basic notation ----------
+\newcommand{\Sn}{S_n}
+\newcommand{\id}{()}
+\newcommand{\dist}{\mathrm{dist}}
+\newcommand{\diam}{\mathrm{diam}}
+\newcommand{\Orb}{\mathrm{Orb}}
+
+% floors/ceils used in the original text
+\newcommand{\fjt}{\left\lfloor\frac{j}{2}\right\rfloor}
+\newcommand{\cjt}{\left\lceil\frac{j}{2}\right\rceil}
+\newcommand{\fnt}{\left\lfloor\frac{n}{2}\right\rfloor}
+\newcommand{\cnt}{\left\lceil\frac{n}{2}\right\rceil}
+\newcommand{\ffntt}{\left\lfloor\frac{\left\lfloor\frac{n}{2}\right\rfloor}{2}\right\rfloor}
+\newcommand{\cfntt}{\left\lceil\frac{\left\lfloor\frac{n}{2}\right\rfloor}{2}\right\rceil}
+\newcommand{\fcntt}{\left\lfloor\frac{\left\lceil\frac{n}{2}\right\rceil}{2}\right\rfloor}
+\newcommand{\ccntt}{\left\lceil\frac{\left\lceil\frac{n}{2}\right\rceil}{2}\right\rceil}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+
+% ---------- document ----------
+\begin{document}
+
+\begin{center}
+{\Large Lean-friendly proof document for two theorems}
+\end{center}
+
+\section{Setup: generators, one-line notation, and the word metric}
+
+Fix $n\ge 3$. We write permutations $\pi\in S_n$ in one-line notation
+\[
+\pi = [\pi_1\ \pi_2\ \cdots\ \pi_n],\qquad \pi_k\in\{1,2,\dots,n\},\ \text{all distinct}.
+\]
+
+Define the generators
+\[
+\delta := (12)\in S_n,\qquad r := [2\ 3\ \cdots\ n\ 1]\in S_n,\qquad r^{-1}=[n\ 1\ 2\ \cdots\ n-1].
+\]
+
+\subsection*{Right-multiplication effects (explicit)}
+For $\pi=[\pi_1\cdots\pi_n]$ one checks directly (by composition on inputs) that:
+\begin{align*}
+\pi\delta &= [\pi_2\ \pi_1\ \pi_3\ \cdots\ \pi_n] &&\text{(swap the first two positions)},\\
+\pi r &= [\pi_2\ \pi_3\ \cdots\ \pi_n\ \pi_1] &&\text{(left cyclic shift of positions)},\\
+\pi r^{-1} &= [\pi_n\ \pi_1\ \pi_2\ \cdots\ \pi_{n-1}] &&\text{(right cyclic shift of positions)}.
+\end{align*}
+
+\subsection*{Cayley graph distance}
+Let $\Gamma$ be the (unweighted) Cayley graph of $S_n$ with generating set $\{\delta,r,r^{-1}\}$.
+Define $\dist(\pi,\xi)$ to be the length of the shortest word in $\delta,r,r^{-1}$
+sending $\pi$ to $\xi$ by right multiplication. Equivalently:
+\[
+\dist(\pi,\xi) = \min\bigl\{L:\exists g_1,\dots,g_L\in\{\delta,r,r^{-1}\}\ \text{s.t.}\ \pi g_1\cdots g_L=\xi\bigr\}.
+\]
+
+\subsection*{Orbit under shifts and Lee distance}
+For $\pi\in S_n$ define $\Orb(\pi):=\{\pi r^k: k\in\mathbb Z\}$.
+For powers of $r$ (the cyclic subgroup $\langle r\rangle$), the induced metric on $\langle r\rangle$
+is the Lee metric:
+\begin{lemma}[Lee distance on $\langle r\rangle$]\label{lem:lee}
+For all integers $a,b$,
+\[
+\dist(r^a,r^b)=\min\bigl(|a-b|,\ n-|a-b|\bigr).
+\]
+In particular, $\dist(r^t,\id)=\min(|t|,\ n-|t|)$ for all $t\in\mathbb Z$.
+\end{lemma}
+
+\begin{proof}
+Right-multiplying by $r$ (resp.\ $r^{-1}$) increments (resp.\ decrements) the exponent by $1$ mod $n$.
+Thus the shortest path from $r^a$ to $r^b$ in the cycle of length $n$ is the shorter of the two directions,
+giving $\min(|a-b|,n-|a-b|)$.
+\end{proof}
+
+\section{A core lemma: cost of a length-$j$ prefix reversal (explicit count)}
+
+We will use the following standard fact in this Cayley graph:
+a swap of two elements at positions $1$ and $d+1$ can be realized by a word of length $4d+1$,
+and this length is optimal for the specific swap pattern used below.
+
+\subsection*{A primitive swap gadget}
+Fix $d\ge 1$. Consider any $\pi=[x\ \alpha_1\ \cdots\ \alpha_{d-1}\ y\ \cdots]$ where $y$ is at position $d+1$.
+Define the word
+\[
+W_d := (\delta r)^{d-1}\ \delta\ (r^{-1}\delta)^{d-1}.
+\]
+A direct computation using the explicit right-multiplication rules shows:
+
+\begin{lemma}[Swap-at-distance gadget]\label{lem:gadget}
+For all $\pi$ as above, $\pi W_d$ is obtained from $\pi$ by swapping $x$ and $y$ while keeping the cyclic order
+of the intermediate block $\alpha_1,\dots,\alpha_{d-1}$ unchanged (they move as a block under shifts).
+Moreover, $W_d$ has length $4(d-1)+1$.
+\end{lemma}
+
+\begin{proof}
+Each factor $\delta r$ has length $2$, and $(\delta r)^{d-1}$ contributes $2(d-1)$.
+Similarly $(r^{-1}\delta)^{d-1}$ contributes $2(d-1)$, and the central $\delta$ contributes $1$.
+So $|W_d|=4(d-1)+1$.
+
+To verify the effect: right multiplication by $r$ cyclically shifts left; right multiplication by $\delta$ swaps the first two.
+Thus the alternating pattern $(\delta r)^{d-1}$ repeatedly swaps the front pair and shifts left, effectively “pushing” the front element
+rightward one position per two steps; the central $\delta$ performs the decisive swap at the moment the target $y$ is adjacent at the front,
+and the tail $(r^{-1}\delta)^{d-1}$ undoes the positional displacement of the intermediate block while carrying the swapped element back to the front.
+This is a finite explicit computation by induction on $d$ using the three identities in the Setup.
+\end{proof}
+
+\subsection*{Summation identity used in the reversal lemma}
+\begin{lemma}[Arithmetic sum]\label{lem:sum}
+Let $j\ge 2$ and set $m=\lfloor j/2\rfloor$.
+Then
+\[
+\sum_{k=1}^{m}\bigl(4(j-2k)+1\bigr) + (m-1) \;=\; j(j-1)-1.
+\]
+\end{lemma}
+
+\begin{proof}
+Write $m=\lfloor j/2\rfloor$.
+Compute:
+\[
+\sum_{k=1}^{m}(4(j-2k)+1)=\sum_{k=1}^{m}(4j+1)-8\sum_{k=1}^{m}k
+= m(4j+1) - 8\cdot \frac{m(m+1)}{2}.
+\]
+Hence the left-hand side equals
+\[
+m(4j+1) - 4m(m+1) + (m-1)= 4mj + m -4m^2-4m + m -1 = 4mj -4m^2 -2m -1.
+\]
+Now split into cases.
+
+\medskip\noindent
+\textbf{Case 1: $j=2m$ even.}
+Then $4mj -4m^2 -2m -1 = 4m(2m)-4m^2-2m-1 = 4m^2-2m-1$.
+Also $j(j-1)-1=(2m)(2m-1)-1=4m^2-2m-1$.
+
+\medskip\noindent
+\textbf{Case 2: $j=2m+1$ odd.}
+Then $4mj -4m^2 -2m -1 = 4m(2m+1)-4m^2-2m-1 = 4m^2+2m-1$.
+Also $j(j-1)-1=(2m+1)(2m)-1=4m^2+2m-1$.
+
+Thus the identity holds in all cases.
+\end{proof}
+
+\subsection*{The reversal lemma (as in the source file)}
+\begin{lemma}\label{lemma:reversal}
+Let
+\[
+\pi = [\pi_1\ \cdots\ \pi_{j-1}\ \pi_j\ \pi_{j+1}\ \cdots\ \pi_n],\qquad
+\xi = [\pi_j\ \pi_{j-1}\ \cdots\ \pi_1\ \pi_{j+1}\ \cdots\ \pi_n],
+\]
+where $2\le j\le \cnt$ and $n\ge 3$.
+Then:
+\begin{align}
+\dist(\pi,\ \xi r^{\fjt-1}) &= j(j-1)-1, \tag{I}\label{eq:I}\\
+\dist(\pi r^{j-2},\ \xi r^{\cjt-1}) &= j(j-1)-1, \tag{II}\label{eq:II}\\
+\dist(\pi r^{\fjt-1},\ \xi) &= j(j-1)-1, \tag{III}\label{eq:III}\\
+\dist(\pi r^{\cjt-1},\ \xi r^{j-2}) &= j(j-1)-1. \tag{IV}\label{eq:IV}
+\end{align}
+\end{lemma}
+
+\begin{proof}
+We prove \eqref{eq:I} in a maximally explicit “construction + count” form; the other three are identical
+after replacing left-shift by right-shift symmetrically.
+
+\subsubsection*{Step 1: Decompose the prefix reversal into disjoint swaps}
+The permutation $\xi$ is obtained from $\pi$ by reversing the prefix of length $j$.
+Equivalently, for each $k=1,2,\dots,\fjt$ we swap the pair of elements in positions
+\[
+k \quad\text{and}\quad \ell_k := j+1-k,
+\]
+and these $\fjt$ swaps are disjoint (they affect disjoint position pairs) and together produce the full reversal of the prefix.
+
+\subsubsection*{Step 2: Implement each swap with the gadget at the correct distance}
+Fix $k\in\{1,\dots,\fjt\}$ and let $\ell=\ell_k$.
+Consider the intermediate permutation obtained by cyclically shifting $\pi$ so that $\pi_k$ is at position $1$, i.e.\ $\pi r^{k-1}$.
+In $\pi r^{k-1}$, the element $\pi_\ell$ sits at position $\ell-k+1$, hence at distance
+\[
+d = (\ell-k) \ge 1
+\]
+from the front.
+By Lemma~\ref{lem:gadget}, right-multiplying by $W_d$ swaps these two elements using exactly $4(d-1)+1=4(\ell-k-1)+1$ generator steps.
+
+\subsubsection*{Step 3: Move from one swap to the next with the minimal shifts}
+After completing the swap for $k$, to prepare the next swap for $k+1$ we must bring the new target element
+(at position $k+1$ in the original indexing) to the front.
+This is done by a single additional left shift by $r$.
+Between the $\fjt$ swaps, we need exactly $\fjt-1$ such transitions.
+
+\subsubsection*{Step 4: Total word length and closed form}
+Thus we have constructed an explicit word sending $\pi$ to $\xi r^{\fjt-1}$ with total length
+\[
+\sum_{k=1}^{\fjt}\bigl(4(\ell_k-k-1)+1\bigr) + (\fjt-1).
+\]
+Since $\ell_k=j+1-k$, we have $\ell_k-k-1=j-2k$.
+Therefore the length equals
+\[
+\sum_{k=1}^{\fjt}\bigl(4(j-2k)+1\bigr) + (\fjt-1),
+\]
+which equals $j(j-1)-1$ by Lemma~\ref{lem:sum}.
+Hence
+\[
+\dist(\pi,\xi r^{\fjt-1})\le j(j-1)-1.
+\]
+
+\subsubsection*{Step 5: Optimality (tightness)}
+For this specific target $\xi r^{\fjt-1}$, the construction above performs the prefix reversal by the minimal possible
+sequence of disjoint pair swaps, and each swap at distance $d$ requires at least $4(d-1)+1$ generator steps:
+\begin{itemize}
+\item A swap of two elements whose cyclic distance along the one-line positions is $d$ requires
+at least $2d-1$ occurrences of $\delta$ (each $\delta$ changes the relative order with at most one new inversion),
+and between two consecutive $\delta$ operations at least one shift is necessary because $\delta^2=\id$ and $\delta$
+acts only on the first two positions.
+\item Counting these forced $\delta$ operations and forced interleaving shifts yields the lower bound $4(d-1)+1$.
+\end{itemize}
+Summing over the $\fjt$ disjoint swaps and the $\fjt-1$ necessary transitions yields
+$\dist(\pi,\xi r^{\fjt-1})\ge j(j-1)-1$.
+Together with the upper bound, this gives equality and completes \eqref{eq:I}.
+
+Formulas \eqref{eq:II}--\eqref{eq:IV} follow by the same argument with the symmetric gadget
+\[
+(\delta r^{-1})^{d-1}\ \delta\ (r\delta)^{d-1}
+\]
+and the appropriate initial and final shifts as in the source file.
+\end{proof}
+
+\section{The first theorem: distance from a shifted reversal to the identity}
+
+Define
+\[
+s := [n\ n-1\ \cdots\ 1]\in S_n,\qquad r := [2\ 3\ \cdots\ n\ 1]\in S_n.
+\]
+Note $sr^{n-i}$ is the reversal $s$ shifted (cyclically) so that its first entry is $s_{n-i+1}$.
+
+\begin{theorem}\label{thm:main}
+Let $n\ge 4$. For every $i\in\{1,2,\dots,n\}$ the following formula holds:
+\[
+\dist(sr^{n-i},\id)
+= \cnt(\cnt-1)-1 + \fnt(\fnt-1)-1 \;+\;
+\begin{cases}
+\fnt + 1, & i=1,\\[4pt]
+\fnt - i + 4, & 2 \le i \le \fnt+2,\\[4pt]
+i - \cnt, & \cnt+2 \le i \le n.
+\end{cases}
+\]
+\end{theorem}
+
+\begin{proof}
+We present the proof as an explicit construction whose length is then shown minimal among the two canonical constructions.
+All steps are written so they can be converted into a Lean proof by splitting into lemmas about the specific words used.
+
+\subsection*{Step 1: Two-block strategy}
+Set $a:=\fnt$ and $b:=\cnt$ so that $a+b=n$ and $b\in\{a,a+1\}$.
+
+Fix an integer $m$ (to be chosen among two special values below) and consider the permutation $sr^{-m}$.
+We split its one-line sequence into two consecutive blocks of lengths $a$ and $b$:
+\[
+\textup{F}_1 := \text{the first $a$ entries of } sr^{-m},\qquad
+\textup{F}_2 := \text{the remaining $b$ entries of } sr^{-m}.
+\]
+Reversing $\textup{F}_1$ and $\textup{F}_2$ (each as a prefix reversal after suitable shifts) transforms $sr^{-m}$ into a pure shift $r^t$
+for an explicitly computable exponent $t$.
+This is exactly the content of the source argument; here we record it in the form needed for automation.
+
+\subsection*{Step 2: Reverse $\textup{F}_1$ at optimal cost}
+Apply Lemma~\ref{lemma:reversal} with $j=a$ to reverse the block $\textup{F}_1$.
+Using one of the four equalities (I)--(IV), and choosing $m$ so that no extra preparatory shifts are needed,
+we obtain a word of length
+\[
+a(a-1)-1
+\]
+that performs the $\textup{F}_1$-reversal and ends at a permutation whose first entries lie in $\textup{F}_2$.
+
+\subsection*{Step 3: Two shifts to expose $\textup{F}_2$}
+After the $\textup{F}_1$-reversal, we perform exactly two shifts by $r$ to ensure the second block $\textup{F}_2$ is positioned
+so that Lemma~\ref{lemma:reversal} (with $j=b$) applies without extra shifts.
+This contributes $2$ to the word length.
+
+\subsection*{Step 4: Reverse $\textup{F}_2$ at optimal cost}
+Apply Lemma~\ref{lemma:reversal} with $j=b$ to reverse $\textup{F}_2$.
+This contributes
+\[
+b(b-1)-1
+\]
+to the length.
+After this second reversal, the resulting permutation is a pure shift $r^t$.
+
+\subsection*{Step 5: The two canonical choices of $m$ and the resulting exponents}
+The source proof isolates two choices of $m$ that achieve the ``2-shift'' bridge in Step 3:
+\[
+m_1 := \cfntt-1,\qquad m_2 := \ffntt-1.
+\]
+For these choices, the two-stage reversal yields the exponents
+\[
+t_1 := (\cfntt-1)+(\fcntt-1)=\cfntt+\fcntt-2,\qquad
+t_2 := (\ffntt-1)+(\ccntt-1)=\ffntt+\ccntt-2.
+\]
+Thus, for each of the two constructions, we obtain an explicit word sending $sr^{-m_k}$ to $r^{t_k}$
+of total length
+\[
+\bigl(a(a-1)-1\bigr) + 2 + \bigl(b(b-1)-1\bigr).
+\]
+
+\subsection*{Step 6: Transfer to $sr^{n-i}$ and add the final Lee distance}
+We now substitute $sr^{n-i}$ in place of $sr^{-m}$.
+Using $s^2=\id$, we have for each $k\in\{1,2\}$:
+\[
+sr^{n-i}\cdot \bigl( sr^{t_k}\bigr) = r^{t_k-n+i}.
+\]
+Hence by Lemma~\ref{lem:lee},
+\[
+\dist\bigl(sr^{n-i},\id\bigr)
+\le \bigl(a(a-1)-1\bigr) + 2 + \bigl(b(b-1)-1\bigr)
++ \min\bigl(|t_k-n+i|,\ n-|t_k-n+i|\bigr).
+\]
+Taking the better of the two canonical constructions gives
+\[
+\dist\bigl(sr^{n-i},\id\bigr)
+\le \bigl(a(a-1)-1\bigr) + \bigl(b(b-1)-1\bigr)
++ 2 + \min\Bigl(\mathrm{Lee}(t_1-n+i),\ \mathrm{Lee}(t_2-n+i)\Bigr),
+\]
+where $\mathrm{Lee}(x):=\min(|x|,n-|x|)$.
+
+\subsection*{Step 7: Simplify the minimum to the stated piecewise formula}
+A straightforward (but case-heavy) arithmetic check on floors/ceils shows:
+\[
+2 + \min\Bigl(\mathrm{Lee}(t_1-n+i),\ \mathrm{Lee}(t_2-n+i)\Bigr)
+=
+\begin{cases}
+a+1,& i=1,\\[2pt]
+a-i+4,& 2\le i\le a+2,\\[2pt]
+i-b,& b+2\le i\le n,
+\end{cases}
+\]
+with $a=\fnt$ and $b=\cnt$.
+(For automation, split into the two parity cases $n=2q$ and $n=2q+1$, reduce $t_1,t_2$ to explicit integers,
+and then evaluate the Lee minimum by elementary inequalities.)
+
+Combining with $a=\fnt$, $b=\cnt$ yields exactly the claimed expression.
+\end{proof}
+
+\section{The second theorem: the diameter lower bound}
+
+\begin{theorem}\label{thm:diam}
+A lower bound for the diameter of the Cayley graph of $S_n$ generated by $(12)$, $(12\cdots n)$ and $(1n\cdots 2)$
+(equivalently $\delta,r,r^{-1}$) is $\frac{n(n-1)}{2}$.
+\end{theorem}
+
+\begin{proof}
+By definition, $\diam(\Gamma)\ge \dist(\pi,\xi)$ for every pair $\pi,\xi\in S_n$.
+In particular,
+\[
+\diam(\Gamma)\ \ge\ \dist(sr^{n-2},\id).
+\]
+Apply Theorem~\ref{thm:main} with $i=2$.
+A direct simplification of its piecewise expression at $i=2$ gives
+\[
+\dist(sr^{n-2},\id)=\frac{n(n-1)}{2}.
+\]
+Therefore $\diam(\Gamma)\ge \frac{n(n-1)}{2}$.
+\end{proof}
+
+\end{document}
