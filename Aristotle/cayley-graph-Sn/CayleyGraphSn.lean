@@ -185,12 +185,449 @@ lemma wordLength_cycleR_pow_le_min (k : ℕ) (hk : k ≤ n) :
   rw [le_min_iff]
   exact ⟨wordLength_cycleR_pow_upper n k, wordLength_cycleR_pow_upper' n k hk⟩
 
-/-- Lee distance is symmetric: leeDist(-t) = leeDist(t) -/
+/-- r^t = r^(t % n) for integer t, since r has order n -/
+lemma cycleR_zpow_mod (t : ℤ) :
+    (cycleR n) ^ t = (cycleR n) ^ (t % (n : ℤ)).toNat := by
+  have hn : 0 < n := NeZero.pos n
+  have hn' : (n : ℤ) > 0 := Int.natCast_pos.mpr hn
+  -- t = n * (t / n) + (t % n)
+  have hdiv : t = ↑n * (t / ↑n) + t % ↑n := (Int.ediv_add_emod t ↑n).symm
+  -- r^t = r^(n * (t / n) + t % n) = (r^n)^(t/n) * r^(t % n) = 1 * r^(t % n)
+  conv_lhs => rw [hdiv]
+  rw [zpow_add, zpow_mul, zpow_natCast, cycleR_pow_n, one_zpow, one_mul]
+  -- Now show r^(t % n) = r^((t % n).toNat)
+  have hmod_nonneg : 0 ≤ t % n := Int.emod_nonneg t (ne_of_gt hn')
+  -- Convert zpow to pow using the non-negative integer
+  conv_lhs => rw [← Int.toNat_of_nonneg hmod_nonneg]
+  rw [zpow_natCast]
+
+/-- The toNat of (t % n) is less than n -/
+lemma toNat_emod_lt (t : ℤ) : (t % (n : ℤ)).toNat < n := by
+  have hn : 0 < n := NeZero.pos n
+  have hn' : (n : ℤ) > 0 := Int.natCast_pos.mpr hn
+  have hmod_nonneg : 0 ≤ t % n := Int.emod_nonneg t (ne_of_gt hn')
+  have hmod_lt : t % n < n := Int.emod_lt_of_pos t hn'
+  have h1 : (t % ↑n).toNat = (t % ↑n).natAbs := (Int.toNat_of_nonneg hmod_nonneg).symm ▸ rfl
+  omega
+
+/-- For non-negative integers, natAbs equals toNat -/
+lemma Int.natAbs_eq_toNat {x : ℤ} (h : 0 ≤ x) : x.natAbs = x.toNat := by
+  have h1 : (x.natAbs : ℤ) = x := Int.natAbs_of_nonneg h
+  have h2 : (x.toNat : ℤ) = x := Int.toNat_of_nonneg h
+  omega
+
+/-- leeDist expressed in terms of toNat -/
+lemma leeDist_eq_min_toNat (t : ℤ) :
+    leeDist n t = min (t % (n : ℤ)).toNat (n - (t % (n : ℤ)).toNat) := by
+  unfold leeDist
+  have hn : 0 < n := NeZero.pos n
+  have hn' : (n : ℤ) > 0 := Int.natCast_pos.mpr hn
+  have hmod_nonneg : 0 ≤ t % n := Int.emod_nonneg t (ne_of_gt hn')
+  have habs : (t % ↑n).natAbs = (t % ↑n).toNat := Int.natAbs_eq_toNat hmod_nonneg
+  simp only [habs]
+
+/-- Lee distance is symmetric: leeDist(-t) = leeDist(t).
+    This follows from min(k, n-k) = min(n-k, k) and the fact that
+    (-t) mod n and (t mod n) are complementary mod n.
+
+    Key insight: When t % n = k with 0 ≤ k < n,
+    - If k = 0: (-t) % n = 0, so both sides equal min(0, n) = 0
+    - If k > 0: (-t) % n = n - k, so LHS = min(n-k, k) = min(k, n-k) = RHS -/
 lemma leeDist_neg (t : ℤ) : leeDist n (-t) = leeDist n t := by
   unfold leeDist
-  -- The key insight: |(-t) mod n| and |t mod n| give the same Lee distance
-  -- because min(k, n-k) = min(n-k, k)
+  have hn : (n : ℤ) > 0 := Int.natCast_pos.mpr (NeZero.pos n)
+  have hnn : (n : ℤ) ≠ 0 := ne_of_gt hn
+  by_cases ht : t % n = 0
+  · -- Case: t ≡ 0 (mod n), so -t ≡ 0 (mod n) as well
+    have h1 : (-t) % n = 0 := by
+      have hdvd : (n : ℤ) ∣ t := Int.dvd_of_emod_eq_zero ht
+      exact Int.emod_eq_zero_of_dvd (Int.dvd_neg.mpr hdvd)
+    simp only [ht, h1, Int.natAbs_zero, Nat.sub_zero]
+  · -- Case: t ≢ 0 (mod n), so (-t) % n = n - t % n
+    -- Then min(|n - t%n|, n - |n - t%n|) = min(n - t%n, t%n) = min(t%n, n - t%n)
+    have hndvd : ¬(n : ℤ) ∣ t := fun h => ht (Int.emod_eq_zero_of_dvd h)
+    have hneg_mod : (-t) % ↑n = ↑n - t % ↑n := by
+      rw [Int.neg_emod, if_neg hndvd]
+      simp only [Int.natAbs_of_nonneg (le_of_lt hn)]
+    have ht_nonneg : 0 ≤ t % n := Int.emod_nonneg t hnn
+    have ht_lt : t % n < n := Int.emod_lt_of_pos t hn
+    have ht_pos : 0 < t % n := lt_of_le_of_ne ht_nonneg (Ne.symm ht)
+    have hdiff_nonneg : 0 ≤ ↑n - t % ↑n := by linarith
+    have hdiff_lt : ↑n - t % ↑n < ↑n := by linarith
+    -- Simplify LHS using hneg_mod
+    simp only [hneg_mod]
+    -- |n - t%n| = n - t%n since n - t%n ≥ 0
+    have habs_diff : (↑n - t % ↑n).natAbs = (↑n - t % ↑n).toNat := Int.natAbs_eq_toNat hdiff_nonneg
+    -- |t%n| = t%n since t%n ≥ 0
+    have habs_t : (t % ↑n).natAbs = (t % ↑n).toNat := Int.natAbs_eq_toNat ht_nonneg
+    simp only [habs_diff, habs_t]
+    -- Now convert toNat expressions
+    have h_toNat_diff : (↑n - t % ↑n).toNat = n - (t % ↑n).toNat := by
+      have hcast : (↑n - t % ↑n).toNat = ((n : ℤ) - t % ↑n).toNat := rfl
+      have hsub : ((n : ℤ) - t % ↑n).toNat = n - (t % ↑n).toNat := by
+        have hn_toNat : (n : ℤ).toNat = n := Int.toNat_natCast n
+        have hmod_toNat : (t % ↑n).toNat ≤ n := le_of_lt (toNat_emod_lt n t)
+        omega
+      exact hsub
+    simp only [h_toNat_diff]
+    -- n - (n - (t%n).toNat) = (t%n).toNat
+    have hbnd : (t % ↑n).toNat < n := toNat_emod_lt n t
+    have h_cancel : n - (n - (t % ↑n).toNat) = (t % ↑n).toNat := by omega
+    simp only [h_cancel]
+    exact min_comm _ _
+
+/-- The winding number: counts net rotation in ℤ/nℤ from a generator -/
+def windingNum (g : Perm (Fin n)) : ℤ :=
+  if g = cycleR n then 1
+  else if g = (cycleR n)⁻¹ then -1
+  else 0
+
+/-- Winding number of r is 1 -/
+@[simp]
+lemma windingNum_cycleR : windingNum n (cycleR n) = 1 := by
+  unfold windingNum
+  simp
+
+/-- Winding number of r⁻¹ is -1.
+    Note: For n ≤ 2, r = r⁻¹, but the Lee distance theorem is trivially true in those cases.
+    For n ≥ 3, r ≠ r⁻¹ so this lemma holds. -/
+@[simp]
+lemma windingNum_cycleR_inv (hn3 : n ≥ 3) : windingNum n (cycleR n)⁻¹ = -1 := by
+  unfold windingNum
+  have h_ne : (cycleR n)⁻¹ ≠ cycleR n := by
+    intro h
+    -- (cycleR n)⁻¹ = cycleR n implies r^2 = 1
+    have hcontra : (cycleR n) ^ 2 = 1 := by
+      -- r⁻¹ = r implies r * r⁻¹ = r * r = r^2
+      -- We have: r * r⁻¹ = 1 and r⁻¹ = r, so r * r = 1
+      have h' : cycleR n = (cycleR n)⁻¹ := h.symm
+      rw [sq]
+      conv_lhs => rhs; rw [h']
+      exact mul_inv_cancel (cycleR n)
+    -- For n ≥ 3, r^2 ≠ 1
+    have hn : 0 < n := NeZero.pos n
+    have h0 : ((cycleR n) ^ 2 : Perm (Fin n)) ⟨0, hn⟩ = ⟨0, hn⟩ := by
+      rw [hcontra]; rfl
+    simp only [Perm.coe_pow, Function.iterate_succ, Function.iterate_zero,
+      Function.comp_apply, cycleR] at h0
+    have h1 : (0 + 1) % n = 1 := Nat.mod_eq_of_lt (by omega : 1 < n)
+    have h2 : (1 + 1) % n = 2 := Nat.mod_eq_of_lt (by omega : 2 < n)
+    simp_all
+  simp only [h_ne, ↓reduceIte]
+
+/-- Winding number of δ is 0.
+    Note: For n ≤ 2, delta might equal cycleR, but the Lee distance theorem
+    is trivially true in those cases. For n ≥ 3, delta ≠ cycleR and delta ≠ cycleR⁻¹. -/
+@[simp]
+lemma windingNum_delta (hn3 : n ≥ 3) : windingNum n (delta n) = 0 := by
+  unfold windingNum
+  -- First show delta ≠ cycleR for n ≥ 3
+  have h_ne_cycleR : delta n ≠ cycleR n := by
+    intro h
+    -- delta^2 = 1 (involution), but cycleR^2 ≠ 1 for n ≥ 3
+    have hdelta_sq : (delta n) ^ 2 = 1 := by
+      unfold delta
+      split_ifs with hn
+      · exact swap_mul_self _ _
+      · simp only [sq, mul_one]
+    have hcycleR_sq : (cycleR n) ^ 2 ≠ 1 := by
+      intro hc
+      have hn : 0 < n := NeZero.pos n
+      have h0 : ((cycleR n) ^ 2 : Perm (Fin n)) ⟨0, hn⟩ = ⟨0, hn⟩ := by rw [hc]; rfl
+      simp only [Perm.coe_pow, Function.iterate_succ, Function.iterate_zero,
+        Function.comp_apply, cycleR] at h0
+      have h1 : (0 + 1) % n = 1 := Nat.mod_eq_of_lt (by omega : 1 < n)
+      have h2 : (1 + 1) % n = 2 := Nat.mod_eq_of_lt (by omega : 2 < n)
+      simp_all
+    rw [h] at hdelta_sq
+    exact hcycleR_sq hdelta_sq
+  -- Then show delta ≠ cycleR⁻¹ for n ≥ 3
+  have h_ne_cycleR_inv : delta n ≠ (cycleR n)⁻¹ := by
+    intro h
+    have hdelta_sq : (delta n) ^ 2 = 1 := by
+      unfold delta
+      split_ifs with hn
+      · exact swap_mul_self _ _
+      · simp only [sq, mul_one]
+    have hcycleR_inv_sq : ((cycleR n)⁻¹) ^ 2 ≠ 1 := by
+      simp only [inv_pow, ne_eq]
+      intro hc
+      -- (r⁻¹)^2 = 1 implies r^2 = 1
+      have hr2 : (cycleR n) ^ 2 = 1 := by
+        have h_inv : (cycleR n) ^ 2 = ((cycleR n)⁻¹)⁻¹ ^ 2 := by simp
+        rw [h_inv, inv_pow]
+        exact inv_eq_one.mpr hc
+      have hn : 0 < n := NeZero.pos n
+      have h0 : ((cycleR n) ^ 2 : Perm (Fin n)) ⟨0, hn⟩ = ⟨0, hn⟩ := by rw [hr2]; rfl
+      simp only [Perm.coe_pow, Function.iterate_succ, Function.iterate_zero,
+        Function.comp_apply, cycleR] at h0
+      have h1 : (0 + 1) % n = 1 := Nat.mod_eq_of_lt (by omega : 1 < n)
+      have h2 : (1 + 1) % n = 2 := Nat.mod_eq_of_lt (by omega : 2 < n)
+      simp_all
+    rw [h] at hdelta_sq
+    exact hcycleR_inv_sq hdelta_sq
+  simp only [h_ne_cycleR, h_ne_cycleR_inv, ↓reduceIte]
+
+/-- The winding number of a word (list of generators) -/
+def wordWindingNum (w : List (Perm (Fin n))) : ℤ :=
+  (w.map (windingNum n)).sum
+
+/-- If a word w consists of generators and w.prod = r^k, then
+    wordWindingNum w ≡ k (mod n).
+    Proof: cycleR takes i → (i+1) % n, so the "position" function
+    tracks winding, and only r and r⁻¹ change it. -/
+lemma wordWindingNum_eq_pow (w : List (Perm (Fin n))) (hw : ∀ g ∈ w, g ∈ generators n)
+    (k : ℤ) (hprod : w.prod = (cycleR n) ^ k) :
+    (wordWindingNum n w : ZMod n) = (k : ZMod n) := by
+  -- The key is to track position 0 through the permutation
+  -- cycleR^k sends 0 → k (mod n)
+  -- Each r in w contributes +1, each r⁻¹ contributes -1, δ contributes 0
+  -- So the winding number equals k (mod n)
   sorry
+
+/-- For any word w consisting of a copies of r, b copies of r⁻¹, and c copies of δ,
+    the word length is a + b + c, and to achieve r^k we need a - b ≡ k (mod n).
+    The minimum a + b subject to this constraint is min(k, n-k). -/
+lemma min_word_length_for_winding (a b : ℕ) (k : ℕ) (hk : k < n)
+    (hab : (a : ℤ) - b ≡ k [ZMOD n]) :
+    min k (n - k) ≤ a + b := by
+  -- a - b ≡ k (mod n) means a - b = k + m * n for some integer m
+  -- Since a, b ≥ 0, and k < n, we analyze cases:
+  -- Case 1: a ≥ b. Then a - b ≥ 0. We have a - b ≡ k, and 0 ≤ k < n.
+  --         So a - b = k (taking m = 0). Then a + b ≥ a - b = k ≥ min(k, n-k).
+  -- Case 2: a < b. Then a - b < 0. We have a - b ≡ k, so -|a - b| ≡ k.
+  --         This means n - |a - b| = k, i.e., |a - b| = n - k.
+  --         So b - a = n - k, hence a + b ≥ b - a = n - k ≥ min(k, n-k).
+  have hn := NeZero.pos n
+  rw [Int.ModEq] at hab
+  by_cases hab_sign : a ≥ b
+  · -- Case: a ≥ b
+    have hab_diff : (a : ℤ) - b ≥ 0 := by simp only [sub_nonneg, Nat.cast_le]; exact hab_sign
+    have hab_mod : ((a : ℤ) - b) % n = k % n := hab
+    have hk_mod : (k : ℤ) % n = k := Int.emod_eq_of_lt (by omega : (0 : ℤ) ≤ k) (by omega : (k : ℤ) < n)
+    rw [hk_mod] at hab_mod
+    -- (a - b) % n = k, and a - b ≥ 0
+    -- If a - b < n, then (a - b) % n = a - b, so a - b = k
+    -- If a - b ≥ n, then a - b ≥ n > k, and a + b ≥ a - b ≥ n > k and > n - k
+    by_cases hab_lt : (a : ℤ) - b < n
+    · have : ((a : ℤ) - b) % n = a - b := Int.emod_eq_of_lt hab_diff hab_lt
+      rw [this] at hab_mod
+      have heq : (a : ℤ) - b = k := hab_mod
+      have hab_sum : (a : ℤ) + b ≥ a - b := by linarith
+      have hk_le : (k : ℤ) ≤ a + b := by linarith
+      have hmin : min k (n - k) ≤ k := min_le_left k (n - k)
+      calc min k (n - k) ≤ k := hmin
+        _ ≤ a + b := by omega
+    · -- a - b ≥ n
+      push_neg at hab_lt
+      have : (a + b : ℕ) ≥ n := by omega
+      have hmin1 : min k (n - k) ≤ k := min_le_left k (n - k)
+      have hmin2 : min k (n - k) ≤ n - k := min_le_right k (n - k)
+      omega
+  · -- Case: a < b
+    push_neg at hab_sign
+    have hba : b > a := hab_sign
+    have hab_diff : (a : ℤ) - b < 0 := by omega
+    have hab_diff' : b - a ≥ 1 := by omega
+    -- (a - b) % n = k % n, and a - b < 0
+    -- We use: for x < 0, x % n = n - ((-x) % n) if (-x) % n ≠ 0, else 0
+    -- Here -( a - b) = b - a > 0
+    -- (a - b) % n = n - ((b - a) % n) if (b - a) % n ≠ 0
+    have hab_mod : ((a : ℤ) - b) % n = k % n := hab
+    have hk_mod : (k : ℤ) % n = k := Int.emod_eq_of_lt (by omega : (0 : ℤ) ≤ k) (by omega : (k : ℤ) < n)
+    rw [hk_mod] at hab_mod
+    -- Need to show a + b ≥ min(k, n - k)
+    -- From a - b ≡ k (mod n) with a < b:
+    -- b - a ≡ -k ≡ n - k (mod n)
+    -- So b - a = n - k + m * n for some m ≥ 0
+    -- Hence b - a ≥ n - k
+    -- And a + b ≥ b - a ≥ n - k ≥ min(k, n - k)
+    -- From a - b ≡ k (mod n) with k > 0 (since k < n and a < b implies k ≠ 0 would give contradiction)
+    -- We need: b - a ≡ n - k (mod n)
+    -- Since a - b ≡ k, we have -(a - b) ≡ -k ≡ n - k
+    -- So b - a ≡ n - k (mod n)
+    -- Case analysis: either k = 0 or k > 0
+    by_cases hk_zero : k = 0
+    · -- If k = 0, then a - b ≡ 0 means n | (a - b)
+      -- Since a < b, a - b < 0, so a - b = -m*n for some m ≥ 1
+      -- Thus b - a = m*n ≥ n, so a + b ≥ b - a ≥ n ≥ min(0, n) = 0 ✓
+      subst hk_zero
+      simp only [Nat.cast_zero, sub_zero] at hab_mod
+      -- (a - b) % n = 0, so n | (a - b)
+      have hdiv : (n : ℤ) ∣ (a : ℤ) - b := Int.dvd_of_emod_eq_zero hab_mod
+      -- Since a < b, a - b < 0, so a - b = -m*n for some m ≥ 1
+      -- Thus b - a = m*n ≥ n
+      have hba_ge_n : (b : ℤ) - a ≥ n := by
+        obtain ⟨m, hm⟩ := hdiv
+        have hab_neg : (a : ℤ) - b < 0 := hab_diff
+        have hm_eq : (a : ℤ) - b = n * m := hm
+        have : n * m < 0 := by linarith
+        have hm_neg : m < 0 := by
+          by_contra hm_pos
+          push_neg at hm_pos
+          have : n * m ≥ 0 := mul_nonneg (by omega : (n : ℤ) ≥ 0) hm_pos
+          linarith
+        have hm_le : m ≤ -1 := by omega
+        have hba : (b : ℤ) - a = n * (-m) := by linarith
+        have : -m ≥ 1 := by omega
+        calc (b : ℤ) - a = n * (-m) := hba
+          _ ≥ n * 1 := by nlinarith
+          _ = n := by ring
+      have hab_sum : (a : ℤ) + b ≥ b - a := by linarith
+      simp only [Nat.sub_zero, ge_iff_le, le_min_iff, le_refl, true_and]
+      omega
+    · -- k > 0
+      have hk_pos : k ≥ 1 := Nat.one_le_iff_ne_zero.mpr hk_zero
+      -- The winding analysis: b - a ≥ n - k (since b - a ≡ n - k and b - a > 0, n - k < n)
+      have hba_mod : ((b : ℤ) - a) % n = (n - k) % n := by
+        have h1 : (b : ℤ) - a = -((a : ℤ) - b) := by ring
+        have hk_lt_n : (k : ℤ) < n := by omega
+        have hk_mod_eq : (k : ℤ) % n = k := Int.emod_eq_of_lt (by omega : (0 : ℤ) ≤ k) hk_lt_n
+        have hnk_mod_eq : ((n : ℤ) - k) % n = n - k :=
+          Int.emod_eq_of_lt (by omega : (0 : ℤ) ≤ (n : ℤ) - k) (by omega : (n : ℤ) - k < n)
+        rw [h1, Int.neg_emod]
+        -- Now goal is: (if n | (a - b) then 0 else n - (a - b) % n) = (n - k) % n
+        have hndvd : ¬(n : ℤ) ∣ (a : ℤ) - b := by
+          intro hdvd
+          have := Int.emod_eq_zero_of_dvd hdvd
+          rw [this] at hab_mod
+          omega
+        simp only [hndvd, ↓reduceIte, Int.natAbs_of_nonneg (by omega : (0 : ℤ) ≤ n)]
+        rw [hab_mod, hnk_mod_eq]
+      have hnk_mod : ((n : ℤ) - k) % n = n - k :=
+        Int.emod_eq_of_lt (by omega) (by omega)
+      rw [hnk_mod] at hba_mod
+      -- b - a ≡ n - k (mod n) with b - a > 0 and n - k ∈ (0, n)
+      -- If b - a < n, then b - a = n - k
+      -- If b - a ≥ n, then a + b ≥ n
+      by_cases hba_lt : (b : ℤ) - a < n
+      · have hba_pos : (b : ℤ) - a > 0 := by omega
+        have h1 : ((b : ℤ) - a) % n = b - a := Int.emod_eq_of_lt (by omega) hba_lt
+        rw [h1] at hba_mod
+        have heq : (b : ℤ) - a = n - k := hba_mod
+        have hab_sum : (a : ℤ) + b ≥ b - a := by linarith
+        have hnk_le : (n : ℤ) - k ≤ a + b := by linarith
+        have hmin : min k (n - k) ≤ n - k := min_le_right k (n - k)
+        omega
+      · push_neg at hba_lt
+        have : (a + b : ℕ) ≥ n := by omega
+        omega
+
+/-- Count of cycleR in a word -/
+def countCycleR (w : List (Perm (Fin n))) : ℕ :=
+  w.countP (· = cycleR n)
+
+/-- Count of cycleR⁻¹ in a word -/
+def countCycleRInv (w : List (Perm (Fin n))) : ℕ :=
+  w.countP (· = (cycleR n)⁻¹)
+
+/-- If w is a word in generators with product r^k, then countCycleR - countCycleRInv ≡ k (mod n).
+    This is because only r and r⁻¹ affect the "winding number". -/
+lemma generator_word_winding (w : List (Perm (Fin n))) (hw : ∀ g ∈ w, g ∈ generators n)
+    (hprod : w.prod = (cycleR n) ^ k) (hk : k < n) :
+    ((countCycleR n w : ℤ) - countCycleRInv n w) ≡ k [ZMOD n] := by
+  -- The proof tracks position 0 through the word
+  -- r^k sends 0 → k (mod n)
+  -- Each r contributes +1, each r⁻¹ contributes -1, δ contributes 0
+  sorry
+
+/-- Helper: sum of countP for two predicates where at most one can be true is ≤ length -/
+lemma countP_disjoint_sum_le {α : Type*} (w : List α) (P Q : α → Bool)
+    (h_disj : ∀ x, ¬(P x = true ∧ Q x = true)) : w.countP P + w.countP Q ≤ w.length := by
+  induction w with
+  | nil => simp
+  | cons x xs ih =>
+    simp only [List.countP_cons, List.length_cons]
+    have hPQ_bound : (if P x then 1 else 0) + (if Q x then 1 else 0) ≤ 1 := by
+      cases hPx : P x with
+      | false =>
+        cases hQx : Q x with
+        | false => decide
+        | true => decide
+      | true =>
+        have hQx : Q x = false := by
+          cases hQx' : Q x with
+          | false => rfl
+          | true => exact absurd ⟨hPx, hQx'⟩ (h_disj x)
+        simp only [hQx]; decide
+    omega
+
+/-- Lower bound: wordLength(r^k) ≥ min(k, n-k) for 0 ≤ k < n.
+    Proof: Any word with product r^k has winding number ≡ k (mod n).
+    A word of length L with a copies of r and b copies of r⁻¹ has winding a - b.
+    Since L ≥ a + b and we need a - b ≡ k, minimizing gives min(k, n-k). -/
+lemma wordLength_cycleR_pow_lower (k : ℕ) (hk : k < n) :
+    min k (n - k) ≤ wordLength n ((cycleR n) ^ k) := by
+  -- wordLength is defined as sInf of a set of lengths
+  -- We show that every element of that set is ≥ min(k, n-k)
+  unfold wordLength
+  apply le_csInf
+  · -- The set is nonempty: we can use k copies of r (or n-k copies of r⁻¹)
+    use k
+    use List.replicate k (cycleR n)
+    refine ⟨?_, ?_, ?_⟩
+    · intro g hg
+      simp only [List.mem_replicate] at hg
+      rw [hg.2]
+      exact cycleR_mem_generators n
+    · simp
+    · exact replicate_cycleR_prod n k
+  · -- Every word achieving r^k has length ≥ min(k, n-k)
+    intro L hL
+    obtain ⟨w, hw_gen, hw_len, hw_prod⟩ := hL
+    by_cases h_eq : cycleR n = (cycleR n)⁻¹
+    · -- Case: r = r⁻¹ (n ≤ 2)
+      -- When r = r⁻¹, the counts of r and r⁻¹ are the same (call it c).
+      -- The winding constraint says c - c = 0 ≡ k (mod n).
+      -- Since k < n, this means k = 0.
+      -- Thus min(k, n-k) = min(0, n) = 0 ≤ L, which is trivial.
+      set a := countCycleR n w with ha_def
+      set b := countCycleRInv n w with hb_def
+      have hab : a = b := by
+        simp only [countCycleR, countCycleRInv] at ha_def hb_def
+        rw [ha_def, hb_def]
+        apply List.countP_congr
+        intro x _
+        constructor
+        · intro hx; simp only [decide_eq_true_eq] at hx ⊢; rw [hx, h_eq]
+        · intro hx
+          simp only [decide_eq_true_eq] at hx ⊢
+          -- x = r⁻¹ and r = r⁻¹, so x = r
+          rw [hx]
+          exact h_eq.symm
+      have hwinding : ((a : ℤ) - b) ≡ k [ZMOD n] := generator_word_winding n w hw_gen hw_prod hk
+      rw [hab, sub_self] at hwinding
+      -- 0 ≡ k (mod n) with k < n implies k = 0
+      have hk0 : k = 0 := by
+        rw [Int.ModEq] at hwinding
+        simp only [Int.zero_emod] at hwinding
+        have hn' : (n : ℤ) > 0 := Int.natCast_pos.mpr (NeZero.pos n)
+        have hk_mod : (k : ℤ) % n = k := Int.emod_eq_of_lt (by omega : (0 : ℤ) ≤ k) (by omega : (k : ℤ) < n)
+        rw [hk_mod] at hwinding
+        omega
+      rw [hk0]
+      omega
+    · -- Case: r ≠ r⁻¹ (n ≥ 3), predicates are disjoint
+      -- Count the r's and r⁻¹'s
+      set a := countCycleR n w with ha_def
+      set b := countCycleRInv n w with hb_def
+      -- By generator_word_winding, a - b ≡ k (mod n)
+      have hwinding : ((a : ℤ) - b) ≡ k [ZMOD n] := generator_word_winding n w hw_gen hw_prod hk
+      -- By min_word_length_for_winding, a + b ≥ min(k, n-k)
+      have hab_bound := min_word_length_for_winding n a b k hk hwinding
+      -- The word length L = w.length ≥ a + b (since the predicates are disjoint)
+      have hw_count : a + b ≤ w.length := by
+        simp only [countCycleR, countCycleRInv] at ha_def hb_def
+        rw [ha_def, hb_def]
+        have h_disj : ∀ x, ¬(decide (x = cycleR n) = true ∧ decide (x = (cycleR n)⁻¹) = true) := by
+          intro x ⟨hx1, hx2⟩
+          simp only [decide_eq_true_eq] at hx1 hx2
+          rw [hx1] at hx2
+          exact h_eq hx2
+        exact countP_disjoint_sum_le w _ _ h_disj
+      calc min k (n - k) ≤ a + b := hab_bound
+        _ ≤ w.length := hw_count
+        _ = L := hw_len
 
 /-- The distance between powers of r is the Lee distance of their exponents.
     This follows from the fact that r and r⁻¹ are the only generators that
@@ -212,8 +649,16 @@ theorem lee_distance (a b : ℤ) :
   -- Note: leeDist n (a-b) = leeDist n (b-a) by symmetry (min is symmetric)
   conv_rhs => rw [show a - b = -(b - a) by ring, leeDist_neg]
   -- Now show: wordLength n (r^(b-a)) = leeDist n (b-a)
-  -- This requires showing both upper and lower bounds
-  sorry
+  set t := b - a with ht_def
+  -- Reduce to natural number in [0, n)
+  rw [cycleR_zpow_mod, leeDist_eq_min_toNat]
+  set k := (t % (n : ℤ)).toNat with hk_def
+  have hk_lt : k < n := toNat_emod_lt n t
+  have hk_le : k ≤ n := le_of_lt hk_lt
+  -- Now need: wordLength(r^k) = min(k, n-k)
+  apply le_antisymm
+  · exact wordLength_cycleR_pow_le_min n k hk_le
+  · exact wordLength_cycleR_pow_lower n k hk_lt
 
 /-- Special case: distance from r^t to identity -/
 theorem lee_distance_to_id (t : ℤ) :

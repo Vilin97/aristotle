@@ -1,0 +1,297 @@
+\documentclass[11pt]{article}
+
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+
+% ---------- basic notation ----------
+\newcommand{\Sn}{S_n}
+\newcommand{\id}{()}
+\newcommand{\dist}{\mathrm{dist}}
+
+% generators
+\newcommand{\del}{\delta}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+
+\begin{document}
+
+\begin{center}
+{\Large Lean-friendly proof document: detailed Lee distance on $\langle r\rangle$}
+\end{center}
+
+\section{Setup and goal}
+
+Fix an integer $n\ge 3$. Write permutations $\pi\in S_n$ in one-line notation
+\[
+\pi=[\pi_1\ \pi_2\ \cdots\ \pi_n],
+\]
+meaning $\pi(i)=\pi_i$ for $i=1,\dots,n$.
+
+Define
+\[
+\del:=(12)\in S_n,\qquad
+r := [2\ 3\ \cdots\ n\ 1]\in S_n,\qquad
+r^{-1} := [n\ 1\ 2\ \cdots\ n-1].
+\]
+
+We work in the (unweighted) Cayley graph of $S_n$ with generating set $\{\del,r,r^{-1}\}$, and
+$\dist(\pi,\xi)$ denotes the shortest word length in $\{\del,r,r^{-1}\}$ sending $\pi$ to $\xi$
+by right-multiplication.
+
+\subsection*{Right-multiplication formulas (used repeatedly)}
+For $\pi=[\pi_1\cdots\pi_n]$:
+\begin{align}
+\pi \del &= [\pi_2\ \pi_1\ \pi_3\ \cdots\ \pi_n], \label{eq:delta-action}\\
+\pi r &= [\pi_2\ \pi_3\ \cdots\ \pi_n\ \pi_1], \label{eq:r-action}\\
+\pi r^{-1} &= [\pi_n\ \pi_1\ \pi_2\ \cdots\ \pi_{n-1}]. \label{eq:rinv-action}
+\end{align}
+
+\section{An index function and a cycle metric}
+
+\begin{definition}[Position of the symbol $1$]
+For $\pi=[\pi_1\cdots\pi_n]\in S_n$, define $\operatorname{pos}_1(\pi)\in\{1,\dots,n\}$
+to be the unique index $i$ such that $\pi_i=1$.
+\end{definition}
+
+\begin{lemma}[Well-definedness of $\operatorname{pos}_1$]\label{lem:pos1-well-defined}
+For every $\pi\in S_n$, there exists a unique $i\in\{1,\dots,n\}$ with $\pi_i=1$.
+\end{lemma}
+
+\begin{proof}
+By definition of one-line notation, the entries $\pi_1,\dots,\pi_n$ are a permutation of
+$\{1,\dots,n\}$, hence $1$ occurs at least once. Since all entries are distinct, it occurs
+at most once. Therefore it occurs exactly once, giving existence and uniqueness.
+\end{proof}
+
+\begin{definition}[Cycle distance on indices]\label{def:cyc-dist}
+For $i,j\in\{1,\dots,n\}$ define
+\[
+d_n(i,j):=\min\bigl(|i-j|,\ n-|i-j|\bigr).
+\]
+\end{definition}
+
+\begin{lemma}[Elementary properties of $d_n$]\label{lem:dn-basic}
+For all $i,j,k\in\{1,\dots,n\}$:
+\begin{enumerate}
+\item $d_n(i,j)\ge 0$ and $d_n(i,j)=0$ iff $i=j$.
+\item $d_n(i,j)=d_n(j,i)$.
+\item (Triangle inequality) $d_n(i,k)\le d_n(i,j)+d_n(j,k)$.
+\item If $d_n(i,j)\le 1$ and $d_n(j,k)\le 1$, then $d_n(i,k)\le 2$ (a special case of (3)).
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+These are standard facts for the shortest-path distance on the cycle graph $C_n$:
+vertices are $\{1,\dots,n\}$ and edges connect $t$ to $t+1$ (and $n$ to $1$).
+The quantity $d_n(i,j)$ is exactly the length of the shorter of the two cyclic arcs
+from $i$ to $j$, hence satisfies (1)--(3). Item (4) follows immediately from (3).
+\end{proof}
+
+\section{How $\operatorname{pos}_1$ changes under generators}
+
+\begin{lemma}[Effect of right-multiplication by $r$ and $r^{-1}$ on $\operatorname{pos}_1$]\label{lem:pos1-r}
+Let $\pi=[\pi_1\cdots\pi_n]\in S_n$ and set $i:=\operatorname{pos}_1(\pi)$ (so $\pi_i=1$).
+\begin{enumerate}
+\item If $i\ge 2$, then $\operatorname{pos}_1(\pi r)=i-1$. If $i=1$, then $\operatorname{pos}_1(\pi r)=n$.
+\item If $i\le n-1$, then $\operatorname{pos}_1(\pi r^{-1})=i+1$. If $i=n$, then $\operatorname{pos}_1(\pi r^{-1})=1$.
+\end{enumerate}
+In particular, in both cases we have
+\[
+d_n\bigl(\operatorname{pos}_1(\pi),\operatorname{pos}_1(\pi r)\bigr)=1,\qquad
+d_n\bigl(\operatorname{pos}_1(\pi),\operatorname{pos}_1(\pi r^{-1})\bigr)=1.
+\]
+\end{lemma}
+
+\begin{proof}
+(1) By \eqref{eq:r-action}, $\pi r=[\pi_2\ \pi_3\ \cdots\ \pi_n\ \pi_1]$.
+So the entry $1$ moves one position to the left (cyclically):
+if $\pi_i=1$ with $i\ge 2$, then in $\pi r$ the value $1$ appears in position $i-1$.
+If $i=1$ (meaning $\pi_1=1$), then in $\pi r$ the last entry is $\pi_1=1$, so its position is $n$.
+
+(2) By \eqref{eq:rinv-action}, $\pi r^{-1}=[\pi_n\ \pi_1\ \cdots\ \pi_{n-1}]$.
+So the entry $1$ moves one position to the right (cyclically):
+if $\pi_i=1$ with $i\le n-1$, then in $\pi r^{-1}$ the value $1$ appears in position $i+1$.
+If $i=n$, then in $\pi r^{-1}$ the first entry is $\pi_n=1$, so its position is $1$.
+
+The $d_n$ equalities follow because in either case the index changes to the cyclic neighbor.
+\end{proof}
+
+\begin{lemma}[Effect of right-multiplication by $\del$ on $\operatorname{pos}_1$]\label{lem:pos1-delta}
+Let $\pi\in S_n$ and $i:=\operatorname{pos}_1(\pi)$.
+Then $\operatorname{pos}_1(\pi\del)=i$ if $i\notin\{1,2\}$, while
+$\operatorname{pos}_1(\pi\del)=3-i$ if $i\in\{1,2\}$ (i.e.\ $1\leftrightarrow 2$ is swapped).
+In particular,
+\[
+d_n\bigl(\operatorname{pos}_1(\pi),\operatorname{pos}_1(\pi\del)\bigr)\le 1.
+\]
+\end{lemma}
+
+\begin{proof}
+By \eqref{eq:delta-action}, $\pi\del=[\pi_2\ \pi_1\ \pi_3\ \cdots\ \pi_n]$.
+So positions $3,\dots,n$ are unchanged, while the first two entries are swapped.
+If $i\ge 3$, then $\pi_i=1$ remains in position $i$, hence $\operatorname{pos}_1(\pi\del)=i$.
+If $i=1$, then $\pi_1=1$ becomes the second entry of $\pi\del$, so the new position is $2$.
+If $i=2$, then $\pi_2=1$ becomes the first entry of $\pi\del$, so the new position is $1$.
+Thus when $i\in\{1,2\}$, the new position is exactly $3-i$.
+The $d_n$ bound is immediate: either the index is unchanged (distance $0$) or it swaps $1\leftrightarrow 2$ (distance $1$).
+\end{proof}
+
+\section{A general lower bound on word length via $\operatorname{pos}_1$}
+
+\begin{lemma}[Any generator step changes $\operatorname{pos}_1$ by at most $1$]\label{lem:one-step}
+For any $\pi\in S_n$ and any generator $g\in\{\del,r,r^{-1}\}$,
+\[
+d_n\bigl(\operatorname{pos}_1(\pi),\operatorname{pos}_1(\pi g)\bigr)\le 1.
+\]
+\end{lemma}
+
+\begin{proof}
+For $g=r$ or $g=r^{-1}$ this is Lemma~\ref{lem:pos1-r}. For $g=\del$ this is Lemma~\ref{lem:pos1-delta}.
+\end{proof}
+
+\begin{lemma}[Path-length lower bound]\label{lem:path-lower-bound}
+Let $\pi,\xi\in S_n$. If there exists a word $g_1\cdots g_L$ with each $g_t\in\{\del,r,r^{-1}\}$ and
+$\pi g_1\cdots g_L=\xi$, then
+\[
+d_n\bigl(\operatorname{pos}_1(\pi),\operatorname{pos}_1(\xi)\bigr)\le L.
+\]
+Consequently,
+\[
+\dist(\pi,\xi)\ \ge\ d_n\bigl(\operatorname{pos}_1(\pi),\operatorname{pos}_1(\xi)\bigr).
+\]
+\end{lemma}
+
+\begin{proof}
+Define intermediate vertices $\pi^{(0)}:=\pi$ and $\pi^{(t)}:=\pi g_1\cdots g_t$ for $t=1,\dots,L$,
+so that $\pi^{(L)}=\xi$.
+By Lemma~\ref{lem:one-step}, for each $t$ we have
+\[
+d_n\bigl(\operatorname{pos}_1(\pi^{(t-1)}),\operatorname{pos}_1(\pi^{(t)})\bigr)\le 1.
+\]
+Applying the triangle inequality (Lemma~\ref{lem:dn-basic}(3)) repeatedly gives
+\[
+d_n\bigl(\operatorname{pos}_1(\pi),\operatorname{pos}_1(\xi)\bigr)
+\le \sum_{t=1}^L d_n\bigl(\operatorname{pos}_1(\pi^{(t-1)}),\operatorname{pos}_1(\pi^{(t)})\bigr)
+\le \sum_{t=1}^L 1
+= L.
+\]
+Since $\dist(\pi,\xi)$ is the minimum such $L$, the stated lower bound follows.
+\end{proof}
+
+\section{Computing $\operatorname{pos}_1(r^t)$ explicitly}
+
+\begin{lemma}[Explicit one-line form of $r^t$ and $\operatorname{pos}_1(r^t)$]\label{lem:pos1-rt}
+For each integer $t\ge 0$, the permutation $r^t$ in one-line notation is the left shift by $t$:
+\[
+r^t=[t+1\ \ t+2\ \ \cdots\ \ n\ \ 1\ \ 2\ \ \cdots\ \ t],
+\]
+where entries are interpreted in $\{1,\dots,n\}$ in the obvious way.
+In particular,
+\[
+\operatorname{pos}_1(r^t)=
+\begin{cases}
+1,& t\equiv 0\ (\mathrm{mod}\ n),\\
+n-(t\bmod n)+1,& t\not\equiv 0\ (\mathrm{mod}\ n),
+\end{cases}
+\]
+equivalently: $\operatorname{pos}_1(r^t)$ is the representative in $\{1,\dots,n\}$ of $1-t$ modulo $n$.
+\end{lemma}
+
+\begin{proof}
+We prove the displayed one-line form by induction on $t\ge 0$.
+
+Base case $t=0$: $r^0=\id=[1\ 2\ \cdots\ n]$, which matches the formula.
+
+Inductive step: assume
+$r^t=[t+1\ \ t+2\ \cdots\ n\ 1\ 2\ \cdots\ t]$.
+Then using \eqref{eq:r-action} with $\pi=r^t$, we have
+\[
+r^{t+1}=r^t r = [(r^t)_2\ (r^t)_3\ \cdots\ (r^t)_n\ (r^t)_1],
+\]
+i.e.\ we left-shift the one-line notation by one position, which produces exactly
+\[
+r^{t+1}=[t+2\ \ t+3\ \cdots\ n\ 1\ 2\ \cdots\ t\ \ t+1],
+\]
+matching the claimed formula for $t+1$.
+
+For $\operatorname{pos}_1(r^t)$: in the displayed one-line notation, the entry $1$ occurs after the block
+$t+1,\dots,n$, which has length $n-t$ when $0\le t\le n$.
+Thus for $1\le t\le n-1$, the position is $n-t+1$.
+For general $t\ge 0$, reduce $t$ modulo $n$ because $r^n=\id$.
+Rephrasing, $\operatorname{pos}_1(r^t)$ is the unique representative of $1-t$ modulo $n$ lying in $\{1,\dots,n\}$.
+\end{proof}
+
+\section{Lee distance on $\langle r\rangle$}
+
+\begin{definition}[Reduced difference and Lee distance on exponents]\label{def:lee-exp}
+Fix integers $a,b$.
+Let $d\in\{0,1,\dots,n-1\}$ be the remainder of $a-b$ modulo $n$ (i.e.\ $d\equiv a-b\ (\mathrm{mod}\ n)$).
+Define
+\[
+\mathrm{Lee}_n(a,b):=\min(d,\ n-d).
+\]
+\end{definition}
+
+\begin{lemma}[Easy upper bound using only $r^{\pm1}$]\label{lem:lee-upper}
+For all integers $a,b$,
+\[
+\dist(r^a,r^b)\le \mathrm{Lee}_n(a,b).
+\]
+\end{lemma}
+
+\begin{proof}
+Let $d\in\{0,\dots,n-1\}$ be as in Definition~\ref{def:lee-exp}.
+Then $r^a(r^{-1})^d=r^{a-d}=r^b$ in $S_n$ because $a-d\equiv b\ (\mathrm{mod}\ n)$.
+This gives a word of length $d$ from $r^a$ to $r^b$.
+Similarly, $r^a r^{n-d}=r^{a+n-d}=r^b$ gives a word of length $n-d$.
+Therefore $\dist(r^a,r^b)\le \min(d,n-d)=\mathrm{Lee}_n(a,b)$.
+\end{proof}
+
+\begin{lemma}[Matching lower bound]\label{lem:lee-lower}
+For all integers $a,b$,
+\[
+\dist(r^a,r^b)\ge \mathrm{Lee}_n(a,b).
+\]
+\end{lemma}
+
+\begin{proof}
+By Lemma~\ref{lem:path-lower-bound},
+\[
+\dist(r^a,r^b)\ \ge\ d_n\bigl(\operatorname{pos}_1(r^a),\operatorname{pos}_1(r^b)\bigr).
+\]
+By Lemma~\ref{lem:pos1-rt}, $\operatorname{pos}_1(r^t)$ is congruent to $1-t$ modulo $n$.
+Hence the cyclic distance between $\operatorname{pos}_1(r^a)$ and $\operatorname{pos}_1(r^b)$
+depends only on $(1-a)-(1-b)=b-a$ modulo $n$, i.e.\ on $a-b$ modulo $n$.
+Concretely, let $d\in\{0,\dots,n-1\}$ be the remainder of $a-b$ modulo $n$.
+Then moving from $\operatorname{pos}_1(r^a)$ to $\operatorname{pos}_1(r^b)$ along the cycle requires
+either $d$ steps in one direction or $n-d$ steps in the other, so
+\[
+d_n\bigl(\operatorname{pos}_1(r^a),\operatorname{pos}_1(r^b)\bigr)=\min(d,n-d)=\mathrm{Lee}_n(a,b).
+\]
+Therefore $\dist(r^a,r^b)\ge \mathrm{Lee}_n(a,b)$.
+\end{proof}
+
+\begin{lemma}[Lee distance on $\langle r\rangle$ (correct integer statement)]\label{lem:lee}
+For all integers $a,b$,
+\[
+\dist(r^a,r^b)=\mathrm{Lee}_n(a,b),
+\]
+where $\mathrm{Lee}_n(a,b)$ is defined using the reduced remainder $d\in\{0,\dots,n-1\}$ of $a-b$ modulo $n$:
+$\mathrm{Lee}_n(a,b)=\min(d,n-d)$.
+
+In particular, for any integer $t$,
+\[
+\dist(r^t,\id)=\mathrm{Lee}_n(t,0).
+\]
+Moreover, if $a,b$ are such that $0\le |a-b|\le n$, then $\mathrm{Lee}_n(a,b)=\min(|a-b|,\ n-|a-b|)$,
+so the familiar informal formula holds in that range.
+\end{lemma}
+
+\begin{proof}
+Combine Lemma~\ref{lem:lee-upper} and Lemma~\ref{lem:lee-lower}.
+\end{proof}
+
+\end{document}
