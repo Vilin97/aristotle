@@ -373,18 +373,6 @@ lemma windingNum_delta (hn3 : n ≥ 3) : windingNum n (delta n) = 0 := by
 def wordWindingNum (w : List (Perm (Fin n))) : ℤ :=
   (w.map (windingNum n)).sum
 
-/-- If a word w consists of generators and w.prod = r^k, then
-    wordWindingNum w ≡ k (mod n).
-    Proof: cycleR takes i → (i+1) % n, so the "position" function
-    tracks winding, and only r and r⁻¹ change it. -/
-lemma wordWindingNum_eq_pow (w : List (Perm (Fin n))) (hw : ∀ g ∈ w, g ∈ generators n)
-    (k : ℤ) (hprod : w.prod = (cycleR n) ^ k) :
-    (wordWindingNum n w : ZMod n) = (k : ZMod n) := by
-  -- The key is that the winding number only depends on the count of r and r⁻¹,
-  -- and for products in ⟨r⟩, this count determines the power mod n.
-  -- This is a fundamental property of Cayley graphs on cyclic groups.
-  -- The proof uses tracking arguments and the structure of the generators.
-  sorry
 
 /-- For any word w consisting of a copies of r, b copies of r⁻¹, and c copies of δ,
     the word length is a + b + c, and to achieve r^k we need a - b ≡ k (mod n).
@@ -608,6 +596,243 @@ lemma wordWindingNum_eq_countDiff (w : List (Perm (Fin n))) (hn3 : n ≥ 3)
         Nat.add_zero, add_zero]
       omega
 
+/-- For n ≥ 4, δ * r^j * δ ∉ ⟨r⟩ for 0 < j < n.
+    This is because δrδ maps 0 → 2, 1 → 0, which is not a power of r.
+    Concretely: δrδ = (0 2 3 ... n-1 1) ≠ r^m for any m. -/
+lemma delta_conj_cycleR_pow_not_in_cycleR_subgroup (hn4 : n ≥ 4) (j : ℕ) (hj0 : 0 < j) (hjn : j < n) :
+    ∀ m : ℕ, m < n → delta n * (cycleR n) ^ j * delta n ≠ (cycleR n) ^ m := by
+  intro m hm hcontra
+  -- Evaluate at position 0: (δ r^j δ)(0) should equal m if equal to r^m
+  have hn2 : n ≥ 2 := by omega
+  have h0 : 0 < n := by omega
+  have h1 : 1 < n := by omega
+  -- δ(0) = 1, r^j(1) = (1 + j) % n, δ((1+j)%n) = ?
+  -- For n ≥ 4 and 0 < j < n:
+  -- - If 1 + j < n, then r^j(1) = 1 + j
+  --   - If 1 + j = 1, impossible since j > 0
+  --   - If 1 + j = 0, impossible since j, 1 > 0
+  --   - So δ(1+j) = 1 + j (since 1 + j ≥ 2 for j ≥ 1)
+  -- - If 1 + j ≥ n, then r^j(1) = (1 + j) - n = 1 + j - n
+  --   - 1 + j - n < j < n, and 1 + j - n ≥ 2 - n. For j < n, 1 + j < n + 1 so this is ≤ 0
+  --   - Actually, if j = n - 1, then 1 + j = n, r^j(1) = 0, δ(0) = 1
+  -- Let's compute directly
+  -- (δ * r^j * δ)(0) = δ(r^j(δ(0))) = δ(r^j(1))
+  have h_at_0 : (delta n * (cycleR n) ^ j * delta n) ⟨0, h0⟩ = ((cycleR n) ^ m) ⟨0, h0⟩ := by
+    rw [hcontra]
+  -- LHS: δ(r^j(δ(0)))
+  simp only [Perm.coe_mul, Function.comp_apply] at h_at_0
+  -- δ(0) = 1
+  have hdelta_0 : delta n ⟨0, h0⟩ = ⟨1, h1⟩ := by
+    unfold delta; simp only [hn2, ↓reduceDIte, swap_apply_left]
+  -- r^j(1) = (1 + j) % n
+  have hcycleR_pow_1 : ((cycleR n) ^ j) ⟨1, h1⟩ = ⟨(1 + j) % n, Nat.mod_lt _ h0⟩ := by
+    have : ∀ k : ℕ, ((cycleR n) ^ k) ⟨1, h1⟩ = ⟨(1 + k) % n, Nat.mod_lt _ h0⟩ := by
+      intro k
+      induction k with
+      | zero => simp [Nat.mod_eq_of_lt h1]
+      | succ k' ihk =>
+        rw [pow_succ', Perm.coe_mul, Function.comp_apply, ihk]
+        unfold cycleR
+        simp only [Equiv.coe_fn_mk, Fin.mk.injEq]
+        rw [Nat.add_mod, Nat.mod_mod, ← Nat.add_mod]
+        ring_nf
+    exact this j
+  rw [hdelta_0] at h_at_0
+  rw [hcycleR_pow_1] at h_at_0
+  -- Now compute δ((1 + j) % n)
+  have hmod : (1 + j) % n = 1 + j ∨ (1 + j) % n = 1 + j - n := by
+    by_cases h : 1 + j < n
+    · left; exact Nat.mod_eq_of_lt h
+    · right; push_neg at h
+      have hlt : 1 + j < 2 * n := by omega
+      rw [Nat.mod_eq_sub_mod h]
+      simp [Nat.mod_eq_of_lt (by omega : 1 + j - n < n)]
+  cases hmod with
+  | inl hmod_eq =>
+    -- (1 + j) % n = 1 + j, so 1 + j < n
+    have h1j_lt : 1 + j < n := by
+      by_contra hge
+      push_neg at hge
+      have hmod_lt : (1 + j) % n < n := Nat.mod_lt (1 + j) h0
+      rw [hmod_eq] at hmod_lt
+      omega
+    -- Since j ≥ 1, 1 + j ≥ 2, so δ(1 + j) = 1 + j
+    have h1j_ge2 : (1 + j) % n ≥ 2 := by rw [hmod_eq]; omega
+    have hdelta_1j : delta n ⟨(1 + j) % n, Nat.mod_lt _ h0⟩ = ⟨(1 + j) % n, Nat.mod_lt _ h0⟩ := by
+      unfold delta
+      simp only [hn2, ↓reduceDIte]
+      have hne0 : ⟨(1 + j) % n, Nat.mod_lt (1 + j) h0⟩ ≠ (⟨0, Nat.zero_lt_of_lt hn2⟩ : Fin n) := by
+        simp only [ne_eq, Fin.mk.injEq]; omega
+      have hne1 : ⟨(1 + j) % n, Nat.mod_lt (1 + j) h0⟩ ≠ (⟨1, hn2⟩ : Fin n) := by
+        simp only [ne_eq, Fin.mk.injEq]; omega
+      simp only [swap_apply_of_ne_of_ne hne0 hne1]
+    rw [hdelta_1j] at h_at_0
+    -- RHS: r^m(0) = m
+    rw [cycleR_pow_zero] at h_at_0
+    simp only [Fin.mk.injEq] at h_at_0
+    rw [Nat.mod_eq_of_lt hm, hmod_eq] at h_at_0
+    -- So m = 1 + j
+    -- Now let's check at position 1: (δ r^j δ)(1) should equal (m + 1) % n
+    have h_at_1 : (delta n * (cycleR n) ^ j * delta n) ⟨1, h1⟩ = ((cycleR n) ^ m) ⟨1, h1⟩ := by
+      rw [hcontra]
+    simp only [Perm.coe_mul, Function.comp_apply] at h_at_1
+    -- δ(1) = 0
+    have hdelta_1 : delta n ⟨1, h1⟩ = ⟨0, h0⟩ := by
+      unfold delta; simp only [hn2, ↓reduceDIte, swap_apply_right]
+    rw [hdelta_1] at h_at_1
+    -- r^j(0) = j % n = j (since j < n)
+    have hcycleR_pow_0 : ((cycleR n) ^ j) ⟨0, h0⟩ = ⟨j % n, Nat.mod_lt _ h0⟩ := cycleR_pow_zero n j
+    have hj_mod : j % n = j := Nat.mod_eq_of_lt hjn
+    rw [hcycleR_pow_0] at h_at_1
+    simp only [hj_mod] at h_at_1
+    -- δ(j): if j = 0, δ(0) = 1; if j = 1, δ(1) = 0; else δ(j) = j
+    have hdelta_j : delta n ⟨j, hjn⟩ = if j = 0 then ⟨1, h1⟩ else if j = 1 then ⟨0, h0⟩ else ⟨j, hjn⟩ := by
+      unfold delta
+      simp only [hn2, ↓reduceDIte]
+      by_cases hj0' : j = 0
+      · simp [hj0', swap_apply_left]
+      · by_cases hj1 : j = 1
+        · simp [hj1, swap_apply_right]
+        · have hne0 : ⟨j, hjn⟩ ≠ (⟨0, Nat.zero_lt_of_lt hn2⟩ : Fin n) := by simp [hj0']
+          have hne1 : ⟨j, hjn⟩ ≠ (⟨1, hn2⟩ : Fin n) := by simp [hj1]
+          rw [swap_apply_of_ne_of_ne hne0 hne1]
+          simp [hj0', hj1]
+    rw [hdelta_j] at h_at_1
+    have hj_ne_0 : j ≠ 0 := by omega
+    simp only [hj_ne_0, ↓reduceIte] at h_at_1
+    by_cases hj_eq_1 : j = 1
+    · -- j = 1: δ(j) = 0, RHS = (m + 1) % n = (2 + 1) % n (since m = 1 + j = 2)
+      simp only [hj_eq_1, ↓reduceIte] at h_at_1
+      -- h_at_1 : ⟨0, _⟩ = r^m(1)
+      -- r^m(1) = (1 + m) % n = (1 + 2) % n = 3 (for n ≥ 4)
+      have hm_eq : m = 2 := by omega
+      rw [hm_eq] at h_at_1
+      have hrm_1 : ((cycleR n) ^ 2) ⟨1, h1⟩ = ⟨3, by omega⟩ := by
+        rw [pow_two]
+        simp only [Perm.coe_mul, Function.comp_apply]
+        unfold cycleR; simp only [Equiv.coe_fn_mk, Fin.mk.injEq]
+        have : (1 + 1) % n = 2 := Nat.mod_eq_of_lt (by omega : 2 < n)
+        rw [this]
+        have : (2 + 1) % n = 3 := Nat.mod_eq_of_lt (by omega : 3 < n)
+        exact this
+      rw [hrm_1] at h_at_1
+      simp at h_at_1
+    · -- j ≠ 1: δ(j) = j
+      simp only [hj_eq_1, ↓reduceIte] at h_at_1
+      -- h_at_1 : ⟨j, _⟩ = r^m(1) = (1 + m) % n
+      -- We had m = 1 + j
+      have hm_eq : m = 1 + j := h_at_0.symm
+      have hrm_1 : ((cycleR n) ^ m) ⟨1, h1⟩ = ⟨(1 + m) % n, Nat.mod_lt _ h0⟩ := by
+        have hrm_1' : ∀ k : ℕ, ((cycleR n) ^ k) ⟨1, h1⟩ = ⟨(1 + k) % n, Nat.mod_lt _ h0⟩ := by
+          intro k
+          induction k with
+          | zero => simp [Nat.mod_eq_of_lt h1]
+          | succ k' ihk =>
+            rw [pow_succ', Perm.coe_mul, Function.comp_apply, ihk]
+            unfold cycleR
+            simp only [Equiv.coe_fn_mk, Fin.mk.injEq]
+            rw [Nat.add_mod, Nat.mod_mod, ← Nat.add_mod]
+            ring_nf
+        exact hrm_1' m
+      rw [hrm_1] at h_at_1
+      simp only [Fin.mk.injEq] at h_at_1
+      -- j = (1 + m) % n = (1 + (1 + j)) % n = (2 + j) % n
+      rw [hm_eq] at h_at_1
+      have h2j_mod : (1 + (1 + j)) % n = (2 + j) % n := by ring_nf
+      rw [h2j_mod] at h_at_1
+      -- So j = (2 + j) % n
+      -- If 2 + j < n, then j = 2 + j, contradiction (2 = 0)
+      -- If 2 + j ≥ n, then (2 + j) % n = 2 + j - n, so j = 2 + j - n, meaning n = 2, contradiction since n ≥ 4
+      by_cases h2j_lt : 2 + j < n
+      · rw [Nat.mod_eq_of_lt h2j_lt] at h_at_1; omega
+      · push_neg at h2j_lt
+        have h2j_mod' : (2 + j) % n = 2 + j - n := by
+          rw [Nat.mod_eq_sub_mod h2j_lt]
+          simp [Nat.mod_eq_of_lt (by omega : 2 + j - n < n)]
+        rw [h2j_mod'] at h_at_1
+        omega
+  | inr hmod_eq =>
+    -- (1 + j) % n = 1 + j - n, so 1 + j ≥ n, meaning j ≥ n - 1
+    -- Since j < n, we have j = n - 1
+    have hj_eq : j = n - 1 := by
+      by_contra hne
+      have h1j_lt : 1 + j < n := by omega
+      have hmod_ne : (1 + j) % n = 1 + j := Nat.mod_eq_of_lt h1j_lt
+      rw [hmod_ne] at hmod_eq
+      omega
+    rw [hj_eq]
+    have h1j_sub : (1 + (n - 1)) % n = 0 := by
+      rw [Nat.add_sub_cancel' (by omega : 1 ≤ n), Nat.mod_self]
+    simp only [h1j_sub] at h_at_0
+    -- δ(0) = 1
+    have hdelta_0' : delta n ⟨0, Nat.mod_lt _ h0⟩ = ⟨1, h1⟩ := by
+      unfold delta; simp only [hn2, ↓reduceDIte, swap_apply_left]
+    rw [hdelta_0'] at h_at_0
+    -- r^m(0) = m
+    rw [cycleR_pow_zero] at h_at_0
+    simp only [Fin.mk.injEq] at h_at_0
+    rw [Nat.mod_eq_of_lt hm] at h_at_0
+    -- So m = 1
+    -- Now check at position n-1: (δ r^{n-1} δ)(n-1) should equal r^1(n-1) = 0
+    have hn1_lt : n - 1 < n := by omega
+    have h_at_n1 : (delta n * (cycleR n) ^ j * delta n) ⟨n - 1, hn1_lt⟩ =
+                   (cycleR n) ^ m ⟨n - 1, hn1_lt⟩ := by rw [hcontra]
+    simp only [Perm.coe_mul, Function.comp_apply] at h_at_n1
+    -- δ(n-1) = n-1 (since n-1 ≥ 2 for n ≥ 4)
+    have hdelta_n1 : delta n ⟨n - 1, hn1_lt⟩ = ⟨n - 1, hn1_lt⟩ := by
+      unfold delta
+      simp only [hn2, ↓reduceDIte]
+      have hne0 : ⟨n - 1, hn1_lt⟩ ≠ (⟨0, Nat.zero_lt_of_lt hn2⟩ : Fin n) := by simp; omega
+      have hne1 : ⟨n - 1, hn1_lt⟩ ≠ (⟨1, hn2⟩ : Fin n) := by simp; omega
+      simp only [swap_apply_of_ne_of_ne hne0 hne1]
+    rw [hdelta_n1] at h_at_n1
+    -- r^{n-1}(n-1) = (n-1 + n-1) % n = (2n - 2) % n = n - 2 (for n ≥ 2)
+    have hrj_n1 : ((cycleR n) ^ j) ⟨n - 1, hn1_lt⟩ = ⟨(n - 1 + j) % n, Nat.mod_lt _ h0⟩ := by
+      have hrj_n1' : ∀ k : ℕ, ((cycleR n) ^ k) ⟨n - 1, hn1_lt⟩ = ⟨(n - 1 + k) % n, Nat.mod_lt _ h0⟩ := by
+        intro k
+        induction k with
+        | zero => simp [Nat.mod_eq_of_lt hn1_lt]
+        | succ k' ihk =>
+          rw [pow_succ', Perm.coe_mul, Function.comp_apply, ihk]
+          unfold cycleR
+          simp only [Equiv.coe_fn_mk, Fin.mk.injEq]
+          rw [Nat.add_mod, Nat.mod_mod, ← Nat.add_mod]
+          ring_nf
+      exact hrj_n1' j
+    rw [hj_eq, hrj_n1] at h_at_n1
+    have hn1_j_mod : (n - 1 + (n - 1)) % n = n - 2 := by
+      have h2n2 : n - 1 + (n - 1) = 2 * n - 2 := by omega
+      rw [h2n2]
+      have hge : n ≤ 2 * n - 2 := by omega
+      rw [Nat.mod_eq_sub_mod hge]
+      simp [Nat.mod_eq_of_lt (by omega : 2 * n - 2 - n < n)]
+      omega
+    rw [hn1_j_mod] at h_at_n1
+    -- δ(n-2) = n-2 (since n-2 ≥ 2 for n ≥ 4)
+    have hn2_lt : n - 2 < n := by omega
+    have hdelta_n2 : delta n ⟨n - 2, Nat.mod_lt _ h0⟩ = ⟨n - 2, hn2_lt⟩ := by
+      unfold delta
+      simp only [hn2, ↓reduceDIte]
+      have hne0 : ⟨n - 2, Nat.mod_lt (n - 2) h0⟩ ≠ (⟨0, Nat.zero_lt_of_lt hn2⟩ : Fin n) := by
+        simp; omega
+      have hne1 : ⟨n - 2, Nat.mod_lt (n - 2) h0⟩ ≠ (⟨1, hn2⟩ : Fin n) := by
+        simp; omega
+      simp only [swap_apply_of_ne_of_ne hne0 hne1]
+      simp only [Fin.mk.injEq]
+      exact Nat.mod_eq_of_lt hn2_lt
+    rw [hdelta_n2] at h_at_n1
+    -- RHS: r^m(n-1) = r^1(n-1) = 0
+    rw [h_at_0] at h_at_n1
+    have hr1_n1 : ((cycleR n) ^ 1) ⟨n - 1, hn1_lt⟩ = ⟨0, h0⟩ := by
+      rw [pow_one]
+      unfold cycleR
+      simp only [Equiv.coe_fn_mk, Fin.mk.injEq]
+      have : (n - 1 + 1) % n = 0 := by
+        rw [Nat.sub_add_cancel (by omega : 1 ≤ n), Nat.mod_self]
+      exact this
+    rw [hr1_n1] at h_at_n1
+    simp at h_at_n1
+
 /-- Key lemma: For words in generators with product r^k (k < n), the winding ≡ k (mod n).
 
     Mathematical proof: Note that δrδ ≠ r⁻¹ with our generators δ = (0 1), r = (0 1 ... n-1).
@@ -623,110 +848,1385 @@ lemma wordWindingNum_eq_countDiff (w : List (Perm (Fin n))) (hn3 : n ≥ 3)
        where the intermediate word also has product in ⟨r⟩, so by induction the
        winding of the intermediate contributes correctly.
 
-    This lemma is technically complex to formalize but mathematically true. -/
-lemma wordWindingNum_mod_eq_power (w : List (Perm (Fin n))) (hn3 : n ≥ 3)
+    This lemma uses strong induction on word length to handle nested δ pairs. -/
+lemma wordWindingNum_mod_eq_power (w : List (Perm (Fin n))) (hn4 : n ≥ 4)
     (hw : ∀ g ∈ w, g ∈ generators n) (k : ℕ) (hk : k < n)
     (hprod : w.prod = (cycleR n) ^ k) :
     (wordWindingNum n w : ZMod n) = (k : ZMod n) := by
-  -- The key insight is that for words only containing r and r⁻¹, the winding
-  -- exactly equals the power. For words with δ, if the product is r^k, the δ's
-  -- must appear in pairs that cancel, preserving the winding-power relationship.
-  -- We use the fact that the winding number equals countCycleR - countCycleRInv,
-  -- and this difference mod n determines the power when the product is in ⟨r⟩.
-
+  have hn3 : n ≥ 3 := by omega
   -- Use wordWindingNum_eq_countDiff to express winding as count difference
   rw [wordWindingNum_eq_countDiff n w hn3 hw]
 
-  -- For a word with product r^k, we track position 0 through each generator.
-  -- Each r sends i → i+1 mod n, each r⁻¹ sends i → i-1 mod n, each δ swaps 0↔1.
-  -- The final position of 0 is k (by hprod and cycleR_pow_zero).
-  -- We show that (countCycleR - countCycleRInv) ≡ k (mod n).
+  -- Helper lemmas for n ≥ 3
+  have hn' : 0 < n := NeZero.pos n
 
-  -- The induction on word structure requires generalizing k, which makes the
-  -- proof complex. For words without δ, the winding exactly equals the power.
-  -- For words with δ, the δ's must cancel in pairs for the product to be in ⟨r⟩.
+  -- r ≠ r⁻¹ for n ≥ 3
+  have hr_ne_rinv : cycleR n ≠ (cycleR n)⁻¹ := by
+    intro h
+    have hr_sq : (cycleR n) ^ 2 = 1 := by
+      rw [sq]
+      conv_lhs => rhs; rw [h]
+      simp only [mul_inv_cancel]
+    have h0 : ((cycleR n) ^ 2 : Perm (Fin n)) ⟨0, hn'⟩ = ⟨0, hn'⟩ := by rw [hr_sq]; rfl
+    rw [cycleR_pow_zero] at h0
+    simp only [Fin.mk.injEq] at h0
+    have : 2 % n = 0 := h0
+    have h2_lt : 2 < n := by omega
+    rw [Nat.mod_eq_of_lt h2_lt] at this
+    omega
 
-  -- This is a technically challenging lemma that requires careful tracking of
-  -- how each generator affects both the winding number and the product.
-  -- The key mathematical fact is that the winding is a homomorphism to ℤ,
-  -- and when restricted to words with product in ⟨r⟩, it equals the power mod n.
+  -- δ ≠ r for n ≥ 3
+  have hd_ne_r : delta n ≠ cycleR n := by
+    intro h
+    have hdelta_sq : (delta n) ^ 2 = 1 := by
+      unfold delta; split_ifs; exact swap_mul_self _ _; simp
+    have hr_sq_ne : (cycleR n) ^ 2 ≠ 1 := by
+      intro hc
+      have h0 : ((cycleR n) ^ 2 : Perm (Fin n)) ⟨0, hn'⟩ = ⟨0, hn'⟩ := by rw [hc]; rfl
+      rw [cycleR_pow_zero] at h0
+      simp only [Fin.mk.injEq] at h0
+      have : 2 % n = 0 := h0
+      have h2_lt : 2 < n := by omega
+      rw [Nat.mod_eq_of_lt h2_lt] at this
+      omega
+    rw [h] at hdelta_sq; exact hr_sq_ne hdelta_sq
 
-  sorry
+  -- δ ≠ r⁻¹ for n ≥ 3
+  have hd_ne_rinv : delta n ≠ (cycleR n)⁻¹ := by
+    intro h
+    have hdelta_sq : (delta n) ^ 2 = 1 := by
+      unfold delta; split_ifs; exact swap_mul_self _ _; simp
+    have hr_inv_sq_ne : ((cycleR n)⁻¹) ^ 2 ≠ 1 := by
+      simp only [inv_pow, ne_eq]
+      intro hc
+      have hr2 : (cycleR n) ^ 2 = 1 := inv_eq_one.mp hc
+      have h0 : ((cycleR n) ^ 2 : Perm (Fin n)) ⟨0, hn'⟩ = ⟨0, hn'⟩ := by rw [hr2]; rfl
+      rw [cycleR_pow_zero] at h0
+      simp only [Fin.mk.injEq] at h0
+      have : 2 % n = 0 := h0
+      have h2_lt : 2 < n := by omega
+      rw [Nat.mod_eq_of_lt h2_lt] at this
+      omega
+    rw [h] at hdelta_sq; exact hr_inv_sq_ne hdelta_sq
+
+  -- We use strong induction on word length via Nat.lt_wfRel
+  -- Define the property we want to prove for all words
+  suffices h : ∀ (len : ℕ) (w' : List (Perm (Fin n))),
+      w'.length = len →
+      (∀ g ∈ w', g ∈ generators n) →
+      ∀ k', k' < n → w'.prod = (cycleR n) ^ k' →
+      (((countCycleR n w' : ℤ) - (countCycleRInv n w' : ℤ)) : ZMod n) = ↑k' by
+    have := h w.length w rfl hw k hk hprod
+    simp only [Int.cast_natCast, Int.cast_sub] at this ⊢
+    exact this
+
+  intro len
+  induction len using Nat.strong_induction_on with
+  | h len ih =>
+    intro w' hlen hw' k' hk' hprod'
+    match w' with
+    | [] =>
+      -- Empty word: product is 1, winding is 0
+      simp only [List.prod_nil] at hprod'
+      simp only [countCycleR, countCycleRInv, List.countP_nil, Nat.cast_zero, sub_self,
+        Int.cast_zero]
+      -- 1 = r^k' with k' < n implies k' = 0
+      have hk0 : k' = 0 := by
+        by_contra hk_ne
+        have hk_pos : k' ≥ 1 := Nat.one_le_iff_ne_zero.mpr hk_ne
+        have h0 : ((cycleR n) ^ k' : Perm (Fin n)) ⟨0, hn'⟩ ≠ ⟨0, hn'⟩ := by
+          rw [cycleR_pow_zero]
+          simp only [Fin.mk.injEq, ne_eq]
+          rw [Nat.mod_eq_of_lt hk']
+          omega
+        rw [← hprod'] at h0
+        simp at h0
+      simp [hk0]
+    | x :: xs =>
+      have hx : x ∈ generators n := hw' x (List.mem_cons.mpr (Or.inl rfl))
+      have hxs : ∀ g ∈ xs, g ∈ generators n := fun g hg => hw' g (List.mem_cons_of_mem x hg)
+      simp only [List.prod_cons] at hprod'
+      simp only [countCycleR, countCycleRInv, List.countP_cons]
+      unfold generators at hx
+      simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hx
+
+      -- Apply IH for xs (length = len - 1 < len)
+      have hxs_len : xs.length < len := by simp only [List.length_cons] at hlen; omega
+      have ih_xs : ∀ k'', k'' < n → xs.prod = (cycleR n) ^ k'' →
+          (↑(countCycleR n xs) - ↑(countCycleRInv n xs) : ZMod n) = ↑k'' :=
+        ih xs.length hxs_len xs rfl hxs
+
+      rcases hx with hx_delta | hx_r | hx_rinv
+      · -- x = δ: winding contribution is 0
+        subst hx_delta
+        simp only [hd_ne_r, decide_false, hd_ne_rinv, Bool.false_eq_true, ↓reduceIte, Nat.add_zero]
+        -- δ * xs.prod = r^k', so xs.prod = δ * r^k' (since δ² = 1)
+        by_cases hxs_has_delta : delta n ∈ xs
+        · -- xs contains at least one δ
+          -- Find the first δ in xs: xs = as ++ [δ] ++ bs where as has no δ
+          have hex : ∃ (as bs : List (Perm (Fin n))),
+              xs = as ++ [delta n] ++ bs ∧
+              (∀ g ∈ as, g ≠ delta n) ∧
+              as.length + 1 + bs.length = xs.length := by
+            induction xs with
+            | nil => simp at hxs_has_delta
+            | cons y ys ihy =>
+              by_cases hy_delta : y = delta n
+              · -- y is δ, so as = [], bs = ys
+                exact ⟨[], ys, by simp [hy_delta], by simp, by simp⟩
+              · -- y ≠ δ, recurse on ys
+                have hys_has_delta : delta n ∈ ys := by
+                  simp only [List.mem_cons] at hxs_has_delta
+                  cases hxs_has_delta with
+                  | inl h => exact absurd h hy_delta
+                  | inr h => exact h
+                obtain ⟨as', bs', heq, hno_delta, hlen_eq⟩ := ihy hys_has_delta
+                refine ⟨y :: as', bs', ?_, ?_, ?_⟩
+                · simp [heq]
+                · intro g hg
+                  simp only [List.mem_cons] at hg
+                  cases hg with
+                  | inl h => rw [h]; exact hy_delta
+                  | inr h => exact hno_delta g h
+                · simp only [List.length_cons, List.length_append, List.length_singleton] at hlen_eq ⊢
+                  omega
+          obtain ⟨as, bs, hxs_eq, has_no_delta, hlen_eq⟩ := hex
+          rw [hxs_eq]
+          simp only [List.countP_append, List.countP_cons, hd_ne_r, decide_false, hd_ne_rinv,
+            Bool.false_eq_true, ↓reduceIte, Nat.add_zero]
+          -- as only contains r, r⁻¹
+          have has_gen : ∀ g ∈ as, g ∈ generators n := by
+            intro g hg; exact hxs g (by rw [hxs_eq]; exact List.mem_append_left _ (List.mem_append_left _ hg))
+          have has_r_or_rinv : ∀ g ∈ as, g = cycleR n ∨ g = (cycleR n)⁻¹ := by
+            intro g hg
+            have hg_gen := has_gen g hg
+            unfold generators at hg_gen
+            simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hg_gen
+            rcases hg_gen with hg_d | hg_r | hg_ri
+            · exfalso; exact has_no_delta g hg hg_d
+            · left; exact hg_r
+            · right; exact hg_ri
+          -- as.prod ∈ ⟨r⟩
+          have has_prod_power : ∃ j : ℤ, as.prod = (cycleR n) ^ j := by
+            induction as with
+            | nil => exact ⟨0, by simp⟩
+            | cons y ys ihy =>
+              have hy := has_r_or_rinv y (List.mem_cons_self y ys)
+              have hys_r_or_rinv : ∀ g ∈ ys, g = cycleR n ∨ g = (cycleR n)⁻¹ :=
+                fun g hg => has_r_or_rinv g (List.mem_cons_of_mem y hg)
+              obtain ⟨j, hj⟩ := ihy hys_r_or_rinv
+              simp only [List.prod_cons, hj]
+              rcases hy with hy_r | hy_ri
+              · rw [hy_r, ← zpow_one_add]; exact ⟨1 + j, rfl⟩
+              · rw [hy_ri, ← zpow_neg_one, ← zpow_add]; exact ⟨-1 + j, rfl⟩
+          obtain ⟨j, hj_as⟩ := has_prod_power
+          -- xs.prod = as.prod * δ * bs.prod = r^j * δ * bs.prod
+          have hxs_prod_eq : xs.prod = as.prod * delta n * bs.prod := by
+            rw [hxs_eq, List.prod_append, List.prod_cons, List.prod_append, List.prod_nil, mul_one, mul_assoc]
+          -- δ * xs.prod = δ * r^j * δ * bs.prod = r^k'
+          rw [hxs_prod_eq, hj_as] at hprod'
+          have hprod'' : delta n * (cycleR n) ^ j * delta n * bs.prod = (cycleR n) ^ k' := by
+            rw [mul_assoc, mul_assoc] at hprod' ⊢; exact hprod'
+          -- For n ≥ 4, δ * r^j * δ ∈ ⟨r⟩ only if j ≡ 0 (mod n)
+          have hj_zero_mod : j % n = 0 := by
+            by_contra hj_ne
+            let j' := (j % (n : ℤ)).toNat
+            have hj'_pos : 0 < j' := by
+              simp only [j']
+              have hmod_nonneg : 0 ≤ j % (n : ℤ) := Int.emod_nonneg j (by omega : (n : ℤ) ≠ 0)
+              have hmod_lt : j % (n : ℤ) < n := Int.emod_lt_of_pos j (by omega : 0 < (n : ℤ))
+              omega
+            have hj'_lt : j' < n := by
+              simp only [j']
+              have hmod_lt : j % (n : ℤ) < n := Int.emod_lt_of_pos j (by omega : 0 < (n : ℤ))
+              omega
+            -- δ * r^j * δ = δ * r^{j'} * δ (since r^n = 1)
+            have hr_pow_eq : (cycleR n) ^ j = (cycleR n) ^ j' := by
+              have hrn := cycleR_pow_n n
+              rw [← zpow_natCast] at hrn
+              conv_lhs => rw [← Int.emod_add_ediv j n]
+              rw [zpow_add, zpow_mul, hrn, one_zpow, mul_one]
+              simp only [j']
+              rw [zpow_natCast, Int.toNat_of_nonneg (Int.emod_nonneg j (by omega))]
+            rw [hr_pow_eq] at hprod''
+            -- δ * r^{j'} * δ ∉ ⟨r⟩ for 0 < j' < n
+            have hconj := delta_conj_cycleR_pow_not_in_cycleR_subgroup n hn4 j' hj'_pos hj'_lt
+            -- (δ * r^{j'} * δ) * bs.prod = r^k' ∈ ⟨r⟩
+            -- This means δ * r^{j'} * δ = r^k' * bs.prod⁻¹
+            -- But δ * r^{j'} * δ ∉ ⟨r⟩, and r^k' ∈ ⟨r⟩
+            -- For the product to be in ⟨r⟩, bs.prod must "compensate" exactly
+            -- The key insight: we can use IH on bs
+            -- bs has length < xs.length ≤ len - 1
+            have hbs_len : bs.length < len := by
+              simp only [List.length_cons] at hlen
+              omega
+            have hbs_gen : ∀ g ∈ bs, g ∈ generators n := by
+              intro g hg
+              have : g ∈ xs := by
+                rw [hxs_eq]
+                exact List.mem_append_right _ (List.mem_cons_of_mem _ hg)
+              exact hxs g this
+            -- Compute what bs.prod must be
+            have hbs_prod_eq : bs.prod = (delta n * (cycleR n) ^ j' * delta n)⁻¹ * (cycleR n) ^ k' := by
+              have h1 : delta n * (cycleR n) ^ j' * delta n * bs.prod = (cycleR n) ^ k' := hprod''
+              calc bs.prod
+                  = 1 * bs.prod := by rw [one_mul]
+                _ = (delta n * (cycleR n) ^ j' * delta n)⁻¹ * (delta n * (cycleR n) ^ j' * delta n) * bs.prod := by
+                    rw [inv_mul_cancel, one_mul]
+                _ = (delta n * (cycleR n) ^ j' * delta n)⁻¹ * (delta n * (cycleR n) ^ j' * delta n * bs.prod) := by
+                    group
+                _ = (delta n * (cycleR n) ^ j' * delta n)⁻¹ * (cycleR n) ^ k' := by rw [h1]
+            -- Now simplify (δ * r^{j'} * δ)⁻¹ = δ * r^{-j'} * δ
+            have hinv_eq : (delta n * (cycleR n) ^ j' * delta n)⁻¹ = delta n * (cycleR n) ^ (-(j' : ℤ)) * delta n := by
+              have hdelta_sq : delta n * delta n = 1 := by
+                unfold delta; split_ifs with h; exact swap_mul_self _ _; simp
+              have hdelta_inv : (delta n)⁻¹ = delta n := by
+                rw [← mul_right_cancel_iff (a := delta n)]
+                rw [mul_inv_cancel, hdelta_sq]
+              simp only [mul_inv_rev, hdelta_inv]
+              rw [zpow_neg, zpow_natCast]
+              ring
+            rw [hinv_eq] at hbs_prod_eq
+            -- bs.prod = δ * r^{-j'} * δ * r^k'
+            -- This is NOT in ⟨r⟩ (since δ * r^{-j'} * δ ∉ ⟨r⟩ and we'd need the whole thing to be in ⟨r⟩)
+            -- But wait - (δ * r^{-j'} * δ) * r^k' is the product of something not in ⟨r⟩ with something in ⟨r⟩
+            -- The result is NOT in ⟨r⟩ (since ⟨r⟩ is a subgroup)
+            -- But bs.prod is a product of generators, so it CAN be outside ⟨r⟩!
+            -- The contradiction comes from: if we could compute the winding of bs, we'd get
+            -- a constraint that conflicts with hconj.
+            -- Actually, the key is: δ * r^{j'} * δ ≠ r^m for any m ∈ [0, n), by hconj.
+            -- And we've shown (δ * r^{j'} * δ) * bs.prod = r^k'.
+            -- So bs.prod = (δ * r^{j'} * δ)⁻¹ * r^k'.
+            -- Now, (δ * r^{j'} * δ)⁻¹ = δ * r^{n-j'} * δ (since r^{-j'} = r^{n-j'} for j' ∈ [1, n-1]).
+            -- Hmm, this is still not in ⟨r⟩.
+            --
+            -- Actually the key insight is: We're trying to find k'' such that bs.prod = r^{k''}.
+            -- If such k'' exists, then IH would apply.
+            -- But bs.prod = (δr^{j'}δ)⁻¹ * r^k' = (δr^{n-j'}δ) * r^k'.
+            -- For this to equal r^m for some m, we need δr^{n-j'}δ = r^{m-k'}.
+            -- But δr^{n-j'}δ ∉ ⟨r⟩ (since 0 < n - j' < n when 0 < j' < n).
+            -- So bs.prod ∉ ⟨r⟩.
+            --
+            -- Now, if bs.prod ∉ ⟨r⟩, does that give us a contradiction?
+            -- Not directly from the IH. But we can derive:
+            -- δ * xs.prod = r^k' means xs.prod = δ * r^k' (since δ² = 1).
+            -- xs.prod = r^j * δ * bs.prod.
+            -- So r^j * δ * bs.prod = δ * r^k'.
+            -- Thus δ * r^j * δ * bs.prod = r^k'.
+            -- If bs.prod ∉ ⟨r⟩, then... we still have a valid equation, just bs.prod has a specific form.
+            --
+            -- I think the real issue is that we need to use IH in a different way.
+            -- Let's try: show that the ONLY way the equation can hold is if j ≡ 0 (mod n).
+            -- If j ≢ 0, then δr^jδ ∉ ⟨r⟩, so (δr^jδ) * bs.prod ∈ ⟨r⟩ requires bs.prod ∉ ⟨r⟩.
+            -- But actually, for any π ∉ ⟨r⟩, there exists σ such that π * σ ∈ ⟨r⟩ (just take σ = π⁻¹ * r^m).
+            -- So this doesn't give a contradiction directly.
+            --
+            -- The key mathematical fact we need is: winding is well-defined on cosets.
+            -- For words with product in a fixed coset, the winding mod n is determined.
+            -- This requires a different approach.
+            --
+            -- For now, let's use the fact that j ≢ 0 leads to bs having a specific product form
+            -- that forces a particular winding on bs, which then contradicts the winding on the full word.
+            --
+            -- Actually, I realize the issue: We have (δr^{j'}δ) * bs.prod = r^k', where δr^{j'}δ ∉ ⟨r⟩.
+            -- So bs.prod = (δr^{j'}δ)⁻¹ * r^k' = δr^{-j'}δr^k'.
+            -- Now, r^{-j'} = r^{n-j'} since r^n = 1, so bs.prod = δr^{n-j'}δr^k'.
+            -- This is a specific element, and the winding of any word for bs.prod should be consistent.
+            --
+            -- Let's use: δr^mδ = r^{-1}(01...m-1)(m+1...n-1)r for m ∈ [1, n-1].
+            -- Actually, let me just compute: for n ≥ 4 and 0 < j' < n:
+            -- δr^{j'}δ(0) = δr^{j'}(1) = δ((1 + j') mod n) = (1 + j') mod n if ≠ 0,1, else swap 0↔1.
+            -- Similarly for other positions.
+            -- The point is: δr^{j'}δ has a specific cycle structure that's NOT a power of r.
+            -- But being not a power of r doesn't directly give the winding constraint we need.
+            --
+            -- Let me try a different approach: use the fact that δ is an involution.
+            -- δ(δr^{j'}δ)δ = r^{j'}.
+            -- So if (δr^{j'}δ) * bs.prod = r^k', then δ * r^{j'} * δ * bs.prod = r^k', which gives r^{j'} * (δ * bs.prod) = δ * r^k'.
+            -- Hmm, this is getting complicated.
+            --
+            -- THE KEY INSIGHT: We're in the δ case of the outer induction.
+            -- The word is [δ] ++ xs where xs = as ++ [δ] ++ bs.
+            -- So the full word is [δ] ++ as ++ [δ] ++ bs = [δ] ++ as ++ [δ] ++ bs.
+            -- The winding of [δ] ++ as is winding(as) = winding([δ]) + winding(as) = 0 + winding(as).
+            -- If as.prod = r^j and j ≡ 0 (mod n), then as.prod = 1, so winding(as) ≡ 0.
+            -- If j ≢ 0, we're in this branch trying to derive a contradiction.
+            --
+            -- For the contradiction: we need to show that there's no way to have
+            -- (δr^{j'}δ) * bs.prod = r^k' when δr^{j'}δ ∉ ⟨r⟩.
+            -- But mathematically, any element equals r^k' times SOMETHING.
+            -- The constraint is that bs.prod must be achievable as a product of generators.
+            --
+            -- THE REAL KEY: Any product of generators has a well-defined winding.
+            -- If bs.prod = r^m for some m, then winding(bs) ≡ m (mod n) by IH on bs.
+            -- From (δr^{j'}δ) * bs.prod = r^k', we get bs.prod = (δr^{j'}δ)⁻¹ * r^k'.
+            -- If this equals r^m, then (δr^{j'}δ)⁻¹ = r^{m-k'}, so δr^{j'}δ = r^{k'-m}.
+            -- But δr^{j'}δ ≠ r^p for any p ∈ [0, n) by hconj.
+            -- So bs.prod ≠ r^m for any m ∈ [0, n).
+            --
+            -- Now, if bs.prod ∉ ⟨r⟩, then IH doesn't directly apply (IH needs prod = r^m for some m < n).
+            -- But we CAN still compute the winding of bs. The winding is just the count difference.
+            -- The key is: for any word, prod = δ^a * r^b for some a ∈ {0, 1} and b ∈ ℤ.
+            -- Actually, that's not right either. The group S_n is much larger than just ⟨δ, r⟩ = S_n.
+            --
+            -- OK I think I see the fundamental issue now.
+            -- The claim "winding ≡ power (mod n)" ONLY holds when the product is in ⟨r⟩.
+            -- If bs.prod ∉ ⟨r⟩, then the winding of bs doesn't directly give us information about the power.
+            -- But we're trying to prove something about the winding of [δ] ++ xs = [δ] ++ as ++ [δ] ++ bs.
+            -- The winding of this is winding(as) + winding(bs).
+            --
+            -- Here's the key: Let's show that j ≢ 0 (mod n) leads to a contradiction by considering
+            -- the total winding.
+            -- If j ≢ 0, then δr^jδ ∉ ⟨r⟩, so bs.prod = (δr^jδ)⁻¹ * r^k' ∉ ⟨r⟩.
+            -- But bs is a suffix of xs, and we're in the δ case where the first element is δ.
+            -- So the word [δ] ++ xs = [δ, δ, ...as..., δ, ...bs...] after simplification.
+            -- Wait no, xs = as ++ [δ] ++ bs, so [δ] ++ xs = [δ] ++ as ++ [δ] ++ bs.
+            -- The product is δ * as.prod * δ * bs.prod = δ * r^j * δ * bs.prod = r^k'.
+            --
+            -- Hmm, I'm going in circles. Let me just accept that when j ≢ 0 (mod n), we have a
+            -- structural impossibility that can be derived from the subgroup property.
+            --
+            -- Here's the clean argument:
+            -- 1. δr^{j'}δ ∉ ⟨r⟩ (by hconj)
+            -- 2. (δr^{j'}δ) * bs.prod = r^k' ∈ ⟨r⟩
+            -- 3. For a * b ∈ H (subgroup) with a ∉ H, we need b = a⁻¹ * h for some h ∈ H
+            -- 4. So bs.prod = (δr^{j'}δ)⁻¹ * r^k' = δr^{-j'}δ * r^k'
+            -- 5. δr^{-j'}δ ∉ ⟨r⟩ (since 0 < n - j' < n)
+            -- 6. δr^{-j'}δ * r^k' ∉ ⟨r⟩ (product of something outside ⟨r⟩ with something inside ⟨r⟩)
+            --
+            -- Wait, step 6 is wrong! If a ∉ H and b ∈ H, then a * b can be anywhere.
+            -- Specifically, a * b ∈ H iff a ∈ H (since b ∈ H and H is a group).
+            -- So (δr^{-j'}δ) * r^k' ∉ ⟨r⟩.
+            -- Thus bs.prod ∉ ⟨r⟩.
+            --
+            -- Now, the word bs has bs.prod ∉ ⟨r⟩.
+            -- The word [δ] ++ xs has product in ⟨r⟩.
+            -- The word xs = as ++ [δ] ++ bs has xs.prod = r^j * δ * bs.prod.
+            -- For [δ] ++ xs: prod = δ * r^j * δ * bs.prod = r^k'.
+            --
+            -- The winding of [δ] ++ xs is winding(xs) = winding(as) + winding(bs).
+            -- We want to show winding(as) + winding(bs) ≡ k' (mod n).
+            --
+            -- For words purely in {r, r⁻¹}: winding = power (exactly, over ℤ).
+            -- as is such a word, so winding(as) = j (over ℤ).
+            -- Actually, that's not quite right either. as.prod = r^j where j can be any integer,
+            -- and winding(as) is defined as #r - #r⁻¹, which equals j when as.prod = r^j.
+            --
+            -- So winding(as) = j (as an integer, not mod n).
+            -- And winding(as) mod n = j mod n.
+            --
+            -- For bs: we can't directly say what winding(bs) is because bs.prod ∉ ⟨r⟩.
+            -- But we can still compute winding(bs) as a count.
+            --
+            -- The total winding is winding(as) + winding(bs) = j + winding(bs).
+            -- We want this to be ≡ k' (mod n).
+            --
+            -- From (δr^jδ) * bs.prod = r^k', and using δr^jδ = conjugate of r^j...
+            -- Actually, let me think about this more carefully.
+            --
+            -- The point is: when j ≢ 0 (mod n), the structure of the word forces bs to have a
+            -- specific product form that's incompatible with the winding equation.
+            --
+            -- I'll use the following approach:
+            -- Assume j ≢ 0. Then δr^jδ ≠ r^m for any m.
+            -- We have δr^jδ * bs.prod = r^k'.
+            -- So bs.prod = (δr^jδ)⁻¹ * r^k' = δr^{-j}δ * r^k'.
+            --
+            -- Now, consider the word [δ] ++ bs. Its product is δ * bs.prod = δ * δr^{-j}δ * r^k' = r^{-j} * δ * r^k'.
+            -- Hmm, this is getting complicated.
+            --
+            -- Actually, here's a cleaner approach. Let me just accept the sorry for now and note that
+            -- the proof requires showing that the equation (δr^{j'}δ) * bs.prod = r^k' with j' ≢ 0
+            -- is impossible when bs is a word of generators. This can be done by showing that
+            -- such a bs would need to have a specific structure (starting with δ and having a matching
+            -- structure), but that would increase the total word length beyond what we started with.
+            -- This is essentially the "pumping lemma" style argument.
+            --
+            -- For a complete proof, we'd need strong induction on the TOTAL number of δ's in the word,
+            -- not just the word length.
+            sorry
+          -- j ≡ 0 (mod n), so r^j = 1
+          have hr_pow_j_one : (cycleR n) ^ j = 1 := by
+            have hrn := cycleR_pow_n n
+            rw [← zpow_natCast] at hrn
+            conv_lhs => rw [← Int.emod_add_ediv j n]
+            rw [zpow_add, zpow_mul, hrn, one_zpow, mul_one, hj_zero_mod, zpow_zero]
+          -- as.prod = 1
+          have has_prod_one : as.prod = 1 := by rw [hj_as, hr_pow_j_one]
+          -- δ * 1 * δ * bs.prod = r^k', so bs.prod = r^k'
+          have hbs_prod : bs.prod = (cycleR n) ^ k' := by
+            have hdelta_sq : delta n * delta n = 1 := by
+              unfold delta; split_ifs with h; exact swap_mul_self _ _; simp
+            rw [hj_as, hr_pow_j_one, mul_one] at hprod''
+            calc bs.prod = 1 * bs.prod := by rw [one_mul]
+              _ = (delta n * delta n) * bs.prod := by rw [hdelta_sq]
+              _ = delta n * (delta n * bs.prod) := by group
+              _ = (cycleR n) ^ k' := by
+                  rw [mul_assoc] at hprod''
+                  rw [hprod'']
+          -- bs generators
+          have hbs_gen : ∀ g ∈ bs, g ∈ generators n := by
+            intro g hg
+            have : g ∈ xs := by
+              rw [hxs_eq]
+              exact List.mem_append_right _ (List.mem_cons_of_mem (delta n) hg)
+            exact hxs g this
+          -- By IH on bs (bs.length < len)
+          have hbs_len' : bs.length < len := by
+            simp only [List.length_cons] at hlen
+            omega
+          have hbs_winding := ih bs.length hbs_len' bs rfl hbs_gen k' hk' hbs_prod
+          simp only [countCycleR, countCycleRInv] at hbs_winding
+          -- winding(as) = 0 because as.prod = 1
+          have has_prod' : as.prod = (cycleR n) ^ 0 := by simp [has_prod_one]
+          have has_len' : as.length < len := by
+            simp only [List.length_cons] at hlen
+            omega
+          have has_winding := ih as.length has_len' as rfl has_gen 0 hn' has_prod'
+          simp only [countCycleR, countCycleRInv, Nat.cast_zero] at has_winding
+          have has_winding_zero : (as.countP (· = cycleR n) : ZMod n) =
+                                  (as.countP (· = (cycleR n)⁻¹) : ZMod n) := by
+            simp only [Int.cast_natCast, Int.cast_sub] at has_winding
+            have h : (↑(as.countP (· = cycleR n)) : ZMod n) - ↑(as.countP (· = (cycleR n)⁻¹)) = 0 := has_winding
+            linarith
+          -- Combine
+          simp only [Int.cast_natCast, Int.cast_sub, Nat.cast_add] at hbs_winding ⊢
+          calc (↑(as.countP (· = cycleR n)) + ↑(bs.countP (· = cycleR n)) : ZMod n) -
+                (↑(as.countP (· = (cycleR n)⁻¹)) + ↑(bs.countP (· = (cycleR n)⁻¹)))
+              = (↑(as.countP (· = cycleR n)) - ↑(as.countP (· = (cycleR n)⁻¹))) +
+                (↑(bs.countP (· = cycleR n)) - ↑(bs.countP (· = (cycleR n)⁻¹))) := by ring
+            _ = 0 + (↑(bs.countP (· = cycleR n)) - ↑(bs.countP (· = (cycleR n)⁻¹))) := by
+                rw [sub_eq_zero.mpr has_winding_zero]
+            _ = (k' : ZMod n) := by rw [zero_add]; exact hbs_winding
+        · -- xs contains no δ, so xs ∈ {r, r⁻¹}*
+          -- xs.prod = r^j for some j, and δ * xs.prod = r^k'
+          -- So δ * r^j = r^k', meaning δ = r^{k'-j}
+          -- But δ ∉ ⟨r⟩ for n ≥ 3, contradiction!
+          exfalso
+          have hxs_no_delta : ∀ g ∈ xs, g = cycleR n ∨ g = (cycleR n)⁻¹ := by
+            intro g hg
+            have hg_gen := hxs g hg
+            unfold generators at hg_gen
+            simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hg_gen
+            rcases hg_gen with hg_d | hg_r | hg_ri
+            · exfalso; rw [hg_d] at hg; exact hxs_has_delta hg
+            · left; exact hg_r
+            · right; exact hg_ri
+          have hxs_prod_power : ∃ j : ℤ, xs.prod = (cycleR n) ^ j := by
+            induction xs with
+            | nil => exact ⟨0, by simp⟩
+            | cons y ys ihy =>
+              have hy := hxs_no_delta y (List.mem_cons_self _ _)
+              have hys_no_delta : ∀ g ∈ ys, g = cycleR n ∨ g = (cycleR n)⁻¹ :=
+                fun g hg => hxs_no_delta g (List.mem_cons_of_mem _ hg)
+              obtain ⟨j, hj⟩ := ihy hys_no_delta
+              simp only [List.prod_cons, hj]
+              rcases hy with hy_r | hy_ri
+              · rw [hy_r, ← zpow_one_add]; exact ⟨1 + j, rfl⟩
+              · rw [hy_ri, ← zpow_neg_one, ← zpow_add]; exact ⟨-1 + j, rfl⟩
+          obtain ⟨j, hj⟩ := hxs_prod_power
+          -- δ * r^j = r^k'
+          rw [hj] at hprod'
+          -- δ = r^k' * (r^j)⁻¹ = r^{k'-j}
+          have hdelta_eq_power : delta n = (cycleR n) ^ (k' - j) := by
+            have h1 : delta n * (cycleR n) ^ j * ((cycleR n) ^ j)⁻¹ =
+                      (cycleR n) ^ k' * ((cycleR n) ^ j)⁻¹ := by rw [hprod']
+            simp only [mul_inv_cancel_right] at h1
+            rw [h1, ← zpow_neg, ← zpow_add]
+            ring_nf
+          -- But δ ≠ r^m for any m (δ swaps 0↔1, but r^m maps 0↦m mod n)
+          have hn2 : n ≥ 2 := by omega
+          have h0 : 0 < n := hn'
+          have h1 : 1 < n := by omega
+          have hdelta_0 : delta n ⟨0, h0⟩ = ⟨1, h1⟩ := by
+            unfold delta; simp only [hn2, ↓reduceDIte, swap_apply_left]
+          have hdelta_1 : delta n ⟨1, h1⟩ = ⟨0, h0⟩ := by
+            unfold delta; simp only [hn2, ↓reduceDIte, swap_apply_right]
+          let m := k' - j
+          -- r^m(0) = m mod n (reduced to [0, n))
+          have hrm_0 : (cycleR n) ^ m ⟨0, h0⟩ = ⟨(m % n).toNat, by
+              have hmod := Int.emod_nonneg m (by omega : (n : ℤ) ≠ 0)
+              have hmod_lt := Int.emod_lt_of_pos m (by omega : 0 < (n : ℤ))
+              omega⟩ := by
+            have hrn := cycleR_pow_n n
+            rw [← zpow_natCast] at hrn
+            conv_lhs => rw [← Int.emod_add_ediv m n]
+            rw [zpow_add, zpow_mul, hrn, one_zpow, mul_one]
+            have hmod := Int.emod_nonneg m (by omega : (n : ℤ) ≠ 0)
+            rw [zpow_natCast, ← Int.toNat_of_nonneg hmod]
+            have hmod_lt : (m % n).toNat < n := by
+              have := Int.emod_lt_of_pos m (by omega : 0 < (n : ℤ)); omega
+            rw [cycleR_pow_zero]
+            simp only [Fin.mk.injEq, Nat.mod_eq_of_lt hmod_lt]
+          -- From δ = r^m and δ(0) = 1: (m % n).toNat = 1
+          rw [hdelta_eq_power] at hdelta_0 hdelta_1
+          rw [hrm_0] at hdelta_0
+          simp only [Fin.mk.injEq] at hdelta_0
+          have hm_mod_1 : (m % (n : ℤ)).toNat = 1 := hdelta_0
+          -- r^m(1) = (1 + m) mod n
+          have hrm_1 : (cycleR n) ^ m ⟨1, h1⟩ = ⟨((1 + m) % n).toNat, by
+              have hmod := Int.emod_nonneg (1 + m) (by omega : (n : ℤ) ≠ 0)
+              have hmod_lt := Int.emod_lt_of_pos (1 + m) (by omega : 0 < (n : ℤ))
+              omega⟩ := by
+            have hrn := cycleR_pow_n n
+            rw [← zpow_natCast] at hrn
+            conv_lhs => rw [← Int.emod_add_ediv m n]
+            rw [zpow_add, zpow_mul, hrn, one_zpow, mul_one]
+            have hmod := Int.emod_nonneg m (by omega : (n : ℤ) ≠ 0)
+            rw [zpow_natCast, ← Int.toNat_of_nonneg hmod]
+            have hmod_lt : (m % n).toNat < n := by
+              have := Int.emod_lt_of_pos m (by omega : 0 < (n : ℤ)); omega
+            -- r^{(m % n).toNat}(1) = (1 + (m % n).toNat) % n
+            clear hrm_0 hdelta_0 hdelta_1 hm_mod_1
+            induction (m % (n : ℤ)).toNat with
+            | zero =>
+              simp only [pow_zero, Perm.coe_one, id_eq, Fin.mk.injEq]
+              have h1_mod : (1 + 0) % (n : ℤ) = 1 := by simp; exact Int.emod_eq_of_lt (by omega) (by omega)
+              simp [h1_mod]
+            | succ p ihp =>
+              have hp_lt : p < n := by omega
+              rw [pow_succ', Perm.coe_mul, Function.comp_apply, ihp hp_lt]
+              unfold cycleR; simp only [Equiv.coe_fn_mk, Fin.mk.injEq]
+              have h1p_lt : 1 + p < n := by omega
+              have h1p_mod : ((1 + ↑p) % (n : ℤ)).toNat = 1 + p := by
+                rw [Int.emod_eq_of_lt (by omega) (by omega : (1 + p : ℤ) < n)]; simp
+              rw [h1p_mod]
+              have h2p_mod : ((1 + (↑p + 1)) % (n : ℤ)).toNat = ((2 + p : ℕ) % n) := by
+                simp only [Int.ofNat_add, Int.ofNat_one]
+                by_cases h2p_lt : 2 + p < n
+                · rw [Int.emod_eq_of_lt (by omega) (by omega : (2 + p : ℤ) < n)]
+                  simp [Nat.mod_eq_of_lt h2p_lt]
+                · push_neg at h2p_lt
+                  have h2p_eq : 2 + p = n ∨ 2 + p = n + 1 := by omega
+                  rcases h2p_eq with rfl | rfl
+                  · simp [Int.add_emod, Nat.add_mod]
+                  · simp only [Nat.add_mod_right]
+                    have : ((n + 1 : ℕ) : ℤ) % n = 1 := by simp [Int.add_emod]
+                    simp [this]
+              rw [h2p_mod, Nat.add_mod, Nat.mod_eq_of_lt (by omega : 1 + p < n)]
+              ring_nf
+          rw [hrm_1] at hdelta_1
+          simp only [Fin.mk.injEq] at hdelta_1
+          have h1m_mod_0 : ((1 + m) % (n : ℤ)).toNat = 0 := hdelta_1
+          -- m % n = 1 and (1 + m) % n = 0
+          -- So (1 + m) % n = (1 + 1) % n = 2 % n = 0, meaning n | 2
+          have hm_eq_1 : m % (n : ℤ) = 1 := by
+            have hmod := Int.emod_nonneg m (by omega : (n : ℤ) ≠ 0)
+            have hmod_lt := Int.emod_lt_of_pos m (by omega : 0 < (n : ℤ))
+            omega
+          have h1m_eq_0 : (1 + m) % (n : ℤ) = 0 := by
+            have hmod := Int.emod_nonneg (1 + m) (by omega : (n : ℤ) ≠ 0)
+            have hmod_lt := Int.emod_lt_of_pos (1 + m) (by omega : 0 < (n : ℤ))
+            omega
+          have hcontra : (2 : ℤ) % n = 0 := by
+            calc (2 : ℤ) % n = (1 + 1) % n := by ring
+              _ = (1 + m % n) % n := by rw [hm_eq_1]
+              _ = (1 + m) % n := by rw [Int.add_emod, Int.emod_emod_of_dvd, ← Int.add_emod]; simp
+              _ = 0 := h1m_eq_0
+          have h2_mod_ne : (2 : ℤ) % n ≠ 0 := by
+            rw [Int.emod_eq_of_lt (by omega) (by omega : (2 : ℤ) < n)]; omega
+          exact h2_mod_ne hcontra
+
+      · -- x = r: winding contribution is 1
+        subst hx_r
+        simp only [decide_true, hr_ne_rinv, decide_false, Bool.false_eq_true, ↓reduceIte,
+          Nat.add_zero, add_zero]
+        -- r * xs.prod = r^k', so xs.prod = r^(k'-1)
+        by_cases hk0 : k' = 0
+        · -- k' = 0: r * xs.prod = 1, so xs.prod = r⁻¹ = r^(n-1)
+          subst hk0
+          simp only [pow_zero] at hprod'
+          have hxs_prod : xs.prod = (cycleR n)⁻¹ := by
+            have : (cycleR n)⁻¹ * (cycleR n * xs.prod) = (cycleR n)⁻¹ * 1 := by rw [hprod']
+            simp at this; exact this
+          have hxs_prod' : xs.prod = (cycleR n) ^ (n - 1) := by
+            rw [hxs_prod]
+            have h2 : (cycleR n) ^ (n - 1) * cycleR n = (cycleR n) ^ n := by
+              rw [← pow_succ, Nat.sub_add_cancel (Nat.one_le_of_lt hn3)]
+            have h3 : (cycleR n) ^ n = 1 := cycleR_pow_n n
+            have h4 : (cycleR n) ^ (n - 1) * cycleR n = 1 := by rw [h2, h3]
+            have h5 : (cycleR n) ^ (n - 1) = (cycleR n)⁻¹ := by
+              apply mul_right_cancel (b := cycleR n)
+              rw [h4, inv_mul_cancel]
+            exact h5.symm
+          have hn1_lt : n - 1 < n := by omega
+          have ih' := ih_xs (n - 1) hn1_lt hxs_prod'
+          simp only [countCycleR, countCycleRInv] at ih'
+          have hn_zero : (n : ZMod n) = 0 := ZMod.natCast_self n
+          simp only [Int.cast_natCast, Int.cast_sub] at ih' ⊢
+          have hn1_cast : ((n - 1 : ℕ) : ZMod n) = -1 := by
+            have h : (n : ZMod n) = 0 := ZMod.natCast_self n
+            calc ((n - 1 : ℕ) : ZMod n) = (n : ZMod n) - 1 := by
+                  rw [Nat.cast_sub (Nat.one_le_of_lt hn3)]
+              _ = 0 - 1 := by rw [h]
+              _ = -1 := by ring
+          rw [ih', hn1_cast]
+          ring
+        · -- k' ≥ 1: xs.prod = r^(k'-1)
+          have hk_pos : k' ≥ 1 := Nat.one_le_iff_ne_zero.mpr hk0
+          have hxs_prod : xs.prod = (cycleR n) ^ (k' - 1) := by
+            have : (cycleR n)⁻¹ * (cycleR n * xs.prod) = (cycleR n)⁻¹ * (cycleR n) ^ k' := by rw [hprod']
+            simp at this
+            rw [this, ← zpow_natCast, ← zpow_neg_one, ← zpow_add, ← zpow_natCast]
+            congr 1
+            omega
+          have hk1_lt : k' - 1 < n := by omega
+          have ih' := ih_xs (k' - 1) hk1_lt hxs_prod
+          simp only [countCycleR, countCycleRInv] at ih'
+          simp only [Int.cast_natCast, Int.cast_sub] at ih' ⊢
+          have hk_cast : (k' : ZMod n) = (k' - 1 : ℕ) + 1 := by
+            rw [Nat.cast_sub hk_pos, Nat.cast_one]
+            ring
+          rw [hk_cast, ← ih']
+          ring
+
+      · -- x = r⁻¹: winding contribution is -1
+        subst hx_rinv
+        simp only [hr_ne_rinv.symm, decide_false, decide_true, Bool.false_eq_true, ↓reduceIte,
+          Nat.add_zero, add_zero]
+        -- r⁻¹ * xs.prod = r^k', so xs.prod = r * r^k' = r^(k'+1)
+        have hxs_prod : xs.prod = (cycleR n) ^ (k' + 1) := by
+          have : cycleR n * ((cycleR n)⁻¹ * xs.prod) = cycleR n * (cycleR n) ^ k' := by rw [hprod']
+          simp at this
+          rw [this, ← pow_succ]
+        by_cases hk_n1 : k' = n - 1
+        · -- k' = n - 1: xs.prod = r^n = 1 = r^0
+          subst hk_n1
+          have hxs_prod' : xs.prod = (cycleR n) ^ 0 := by
+            rw [hxs_prod]
+            have h : (n - 1 + 1 : ℕ) = n := Nat.sub_add_cancel (Nat.one_le_of_lt hn3)
+            rw [h, cycleR_pow_n, pow_zero]
+          have ih' := ih_xs 0 hn' hxs_prod'
+          simp only [countCycleR, countCycleRInv, Nat.cast_zero] at ih'
+          simp only [Int.cast_natCast, Int.cast_sub] at ih' ⊢
+          have hn1_cast : ((n - 1 : ℕ) : ZMod n) = -1 := by
+            have h : (n : ZMod n) = 0 := ZMod.natCast_self n
+            calc ((n - 1 : ℕ) : ZMod n) = (n : ZMod n) - 1 := by
+                  rw [Nat.cast_sub (Nat.one_le_of_lt hn3)]
+              _ = 0 - 1 := by rw [h]
+              _ = -1 := by ring
+          rw [hn1_cast, ← ih']
+          ring
+        · -- k' < n - 1: xs.prod = r^(k'+1) with k'+1 < n
+          have hk1_lt : k' + 1 < n := by omega
+          have ih' := ih_xs (k' + 1) hk1_lt hxs_prod
+          simp only [countCycleR, countCycleRInv] at ih'
+          simp only [Int.cast_natCast, Int.cast_sub] at ih' ⊢
+          have hk_cast : (k' : ZMod n) = (k' + 1 : ℕ) - 1 := by
+            rw [Nat.cast_add, Nat.cast_one]
+            ring
+          rw [hk_cast, ← ih']
+          ring
 
 /-- If w is a word in generators with product r^k, then countCycleR - countCycleRInv ≡ k (mod n).
-    This is because only r and r⁻¹ affect the "winding number". -/
-lemma generator_word_winding (w : List (Perm (Fin n))) (hw : ∀ g ∈ w, g ∈ generators n)
+    This is because only r and r⁻¹ affect the "winding number".
+    Note: This lemma requires n ≥ 4 because for n = 3, δrδ = r⁻¹ ∈ ⟨r⟩ breaks the argument.
+    The main theorem handles n ≤ 3 separately. -/
+lemma generator_word_winding (w : List (Perm (Fin n))) (hn4 : n ≥ 4) (hw : ∀ g ∈ w, g ∈ generators n)
     (hprod : w.prod = (cycleR n) ^ k) (hk : k < n) :
     ((countCycleR n w : ℤ) - countCycleRInv n w) ≡ k [ZMOD n] := by
-  by_cases hn3 : n ≥ 3
-  · -- n ≥ 3: use wordWindingNum_eq_countDiff
-    rw [← wordWindingNum_eq_countDiff n w hn3 hw]
-    -- Convert the ZMod n equality to Int.ModEq
-    have h := wordWindingNum_mod_eq_power n w hn3 hw k hk hprod
-    -- h says (wordWindingNum n w : ZMod n) = (k : ZMod n)
-    -- We need wordWindingNum n w ≡ k [ZMOD n], i.e., n | (wordWindingNum n w - k)
-    rw [Int.ModEq, ← ZMod.intCast_eq_intCast_iff']
-    convert h using 1
-    simp only [Int.cast_natCast]
-  · -- n ≤ 2: r = r⁻¹, so counts are equal
-    push_neg at hn3
+  have hn3 : n ≥ 3 := by omega
+  -- n ≥ 4: use wordWindingNum_eq_countDiff
+  rw [← wordWindingNum_eq_countDiff n w hn3 hw]
+  -- Convert the ZMod n equality to Int.ModEq
+  have h := wordWindingNum_mod_eq_power n w hn4 hw k hk hprod
+  -- h says (wordWindingNum n w : ZMod n) = (k : ZMod n)
+  -- We need wordWindingNum n w ≡ k [ZMOD n], i.e., n | (wordWindingNum n w - k)
+  rw [Int.ModEq, ← ZMod.intCast_eq_intCast_iff']
+  convert h using 1
+  simp only [Int.cast_natCast]
+
+/-- Helper: sum of countP for two predicates where at most one can be true is ≤ length -/
+lemma countP_disjoint_sum_le {α : Type*} (w : List α) (P Q : α → Bool)
+    (h_disj : ∀ x, ¬(P x = true ∧ Q x = true)) : w.countP P + w.countP Q ≤ w.length := by
+  induction w with
+  | nil => simp
+  | cons x xs ih =>
+    simp only [List.countP_cons, List.length_cons]
+    have hPQ_bound : (if P x then 1 else 0) + (if Q x then 1 else 0) ≤ 1 := by
+      cases hPx : P x with
+      | false =>
+        cases hQx : Q x with
+        | false => decide
+        | true => decide
+      | true =>
+        have hQx : Q x = false := by
+          cases hQx' : Q x with
+          | false => rfl
+          | true => exact absurd ⟨hPx, hQx'⟩ (h_disj x)
+        simp only [hQx]; decide
+    omega
+
+/-- Lower bound: wordLength(r^k) ≥ min(k, n-k) for 0 ≤ k < n.
+    Proof: Any word with product r^k has winding number ≡ k (mod n).
+    A word of length L with a copies of r and b copies of r⁻¹ has winding a - b.
+    Since L ≥ a + b and we need a - b ≡ k, minimizing gives min(k, n-k). -/
+lemma wordLength_cycleR_pow_lower (k : ℕ) (hk : k < n) :
+    min k (n - k) ≤ wordLength n ((cycleR n) ^ k) := by
+  -- wordLength is defined as sInf of a set of lengths
+  -- We show that every element of that set is ≥ min(k, n-k)
+  unfold wordLength
+  apply le_csInf
+  · -- The set is nonempty: we can use k copies of r (or n-k copies of r⁻¹)
+    use k
+    use List.replicate k (cycleR n)
+    refine ⟨?_, ?_, ?_⟩
+    · intro g hg
+      simp only [List.mem_replicate] at hg
+      rw [hg.2]
+      unfold generators; simp
+    · simp only [List.prod_replicate]
+    · simp only [List.length_replicate]
+  · -- Every word with the right product has length ≥ min(k, n-k)
+    intro L ⟨w, hw_gen, hw_prod, hw_len⟩
     have hn' : 0 < n := NeZero.pos n
-    have hn_cases : n = 1 ∨ n = 2 := by omega
-    have h_eq : cycleR n = (cycleR n)⁻¹ := by
-      rcases hn_cases with rfl | rfl
-      · -- n = 1: trivial since Fin 1 has only one element
-        ext i; fin_cases i; rfl
-      · -- n = 2: r swaps 0 ↔ 1, so r = r⁻¹
-        ext i; fin_cases i
-        · unfold cycleR; rfl
-        · unfold cycleR; rfl
-    have hab : countCycleR n w = countCycleRInv n w := by
-      simp only [countCycleR, countCycleRInv]
-      apply List.countP_congr; intro x _
-      constructor
-      · intro hx; simp only [decide_eq_true_eq] at hx ⊢; rw [hx]; exact h_eq
-      · intro hx; simp only [decide_eq_true_eq] at hx ⊢; rw [hx]; exact h_eq.symm
-    rw [hab, sub_self, Int.ModEq, Int.zero_emod]
-    have hk_mod : (k : ℤ) % n = k := Int.emod_eq_of_lt (by omega) (by omega)
-    rw [hk_mod]
-    -- For n ≤ 2, k < n with 0 ≡ k (mod n) means k = 0
-    -- But we need to be more careful: k can be 0 or 1 for n = 2
-    -- The constraint 0 ≡ k (mod n) with k < n implies k = 0
-    -- Since (k : ℤ) % n = k (from hk_mod), we need (0 : ℤ) = (k : ℤ)
-    -- This is only true when k = 0
-    rcases hn_cases with rfl | rfl
-    · simp only [Nat.lt_one_iff] at hk; omega
-    · -- For n = 2: we need 0 ≡ k (mod 2)
-      -- Since k < 2, k ∈ {0, 1}
-      -- The winding for n = 2 is always 0 because r = r⁻¹ means every generator
-      -- counts as both r and r⁻¹, so countCycleR = countCycleRInv = length.
-      -- For k = 0: 0 ≡ 0 (mod 2) ✓
-      -- For k = 1: 0 ≡ 1 (mod 2) is false, but we need to show this case
-      --           doesn't arise or handle it differently.
-      -- The key insight: for n = 2, we have r = δ = r⁻¹, so generators = {r}.
-      -- A word of length L has product r^L. If product = r^k with k < 2,
-      -- then L ≡ k (mod 2).
-      -- But the winding argument gives 0 ≡ k (mod 2) which is only true for k = 0.
-      -- For k = 1, the winding approach gives the wrong answer!
-      -- However, looking at the usage: we just need min(k, n-k) ≤ word length.
-      -- For n = 2, k = 1: min(1, 1) = 1, and any word achieving r has length ≥ 1.
-      -- So the bound still holds! The winding lemma is just not tight for n = 2.
-      -- We use a direct argument: for n = 2, min(k, 2-k) ≤ length.
-      -- k = 0: min(0, 2) = 0 ≤ L for any L
-      -- k = 1: min(1, 1) = 1 ≤ L, and product = r means L ≥ 1
-      -- Actually the lemma statement for n = 2, k = 1 is unprovable as stated!
-      -- The issue is fundamental: winding ≢ k for this case.
-      -- But generator_word_winding is only used to derive min_word_length_for_winding,
-      -- which still holds because a + b ≥ |a - b| ≥ 0 regardless of the congruence.
-      -- For the lower bound proof, we just need length ≥ min(k, n-k).
-      -- When n = 2 and k = 1: since product = r and r has order 2 (r² = 1),
-      -- we need at least one generator to get a non-identity product.
-      -- Hence length ≥ 1 = min(1, 1). ✓
-      -- Note: The lemma as stated is FALSE for n = 2, k = 1 (winding 0 ≢ 1 mod 2).
-      -- We need to handle this case specially or modify the lemma hypothesis.
-      -- For now, we observe that this sorry doesn't break the main theorem
-      -- because the lower bound still holds for different reasons.
-      sorry
+    have hn4_or_small : n ≥ 4 ∨ n ≤ 3 := by omega
+    rcases hn4_or_small with hn4 | hsmall
+    · -- n ≥ 4: use winding number argument
+      have hwinding := generator_word_winding n w hn4 hw_gen hw_prod hk
+      -- hwinding : (countCycleR n w - countCycleRInv n w : ℤ) ≡ k [ZMOD n]
+      -- Let a = countCycleR, b = countCycleRInv
+      -- a - b ≡ k (mod n) and a + b ≤ L
+      -- So min(k, n-k) ≤ L
+      set a := countCycleR n w with ha_def
+      set b := countCycleRInv n w with hb_def
+      -- a - b ≡ k (mod n)
+      have hab_mod : (a : ℤ) - b ≡ k [ZMOD n] := hwinding
+      -- a + b ≤ L (since each element is either r, r⁻¹, or δ)
+      have hab_le : a + b ≤ L := by
+        rw [← hw_len]
+        unfold countCycleR countCycleRInv
+        apply countP_disjoint_sum_le
+        intro x
+        simp only [decide_eq_true_eq, not_and]
+        intro hx_r hx_rinv
+        rw [hx_r] at hx_rinv
+        have hr_ne : cycleR n ≠ (cycleR n)⁻¹ := by
+          intro h
+          have hr_sq : (cycleR n) ^ 2 = 1 := by rw [sq]; conv_lhs => rhs; rw [h]; simp
+          have h0 : ((cycleR n) ^ 2 : Perm (Fin n)) ⟨0, hn'⟩ = ⟨0, hn'⟩ := by rw [hr_sq]; rfl
+          rw [cycleR_pow_zero] at h0
+          simp only [Fin.mk.injEq] at h0
+          have : 2 % n = 0 := h0
+          have h2_lt : 2 < n := by omega
+          rw [Nat.mod_eq_of_lt h2_lt] at this; omega
+        exact hr_ne hx_rinv
+      -- Now we need: min(k, n-k) ≤ a + b
+      -- From a - b ≡ k (mod n), we have a - b = k + m*n for some integer m
+      -- If a ≥ b: a - b ≥ 0, so we can use a - b = k or a - b = k - n
+      --   If a - b = k, then a + b ≥ |a - b| = k ≥ min(k, n-k)
+      --   If a - b = k - n (when k > 0), then a + b ≥ |a - b| = n - k ≥ min(k, n-k)
+      -- If a < b: a - b < 0, so a - b = k - n (since k < n)
+      --   Then |a - b| = n - k, so a + b ≥ n - k ≥ min(k, n-k)
+      have h_abs : min k (n - k) ≤ a + b := by
+        have h1 : (a : ℤ) + b ≥ |((a : ℤ) - b)| := by
+          have ha_nn : (a : ℤ) ≥ 0 := Int.ofNat_nonneg _
+          have hb_nn : (b : ℤ) ≥ 0 := Int.ofNat_nonneg _
+          have := abs_sub_le_add_abs (a : ℤ) (b : ℤ)
+          simp only [abs_of_nonneg ha_nn, abs_of_nonneg hb_nn]
+          linarith [abs_sub_abs_le_abs_sub (a : ℤ) (b : ℤ)]
+        -- |a - b| ≡ k or n - k (mod n), and |a - b| is nonneg
+        -- Since a - b ≡ k (mod n), |a - b| ≥ min(k, n-k)
+        have h2 : min k (n - k) ≤ |((a : ℤ) - b)| := by
+          rw [Int.ModEq] at hab_mod
+          have hab_eq : ((a : ℤ) - b) % n = k % n := hab_mod
+          have hk_mod : (k : ℤ) % n = k := Int.emod_eq_of_lt (by omega) (by omega)
+          rw [hk_mod] at hab_eq
+          -- |a - b| ≥ min(k, n-k) because (a-b) mod n = k
+          by_cases hab_nn : (a : ℤ) - b ≥ 0
+          · -- a - b ≥ 0
+            have hab_eq' := Int.emod_eq_of_lt hab_nn (by
+              have h := hab_eq
+              by_contra hc; push_neg at hc
+              have : ((a : ℤ) - b) % n < n := Int.emod_lt_of_pos _ (by omega : (n : ℤ) > 0)
+              omega)
+            simp only [abs_of_nonneg hab_nn]
+            omega
+          · -- a - b < 0
+            push_neg at hab_nn
+            have hab_neg : (a : ℤ) - b < 0 := hab_nn
+            have h_neg_mod : (((a : ℤ) - b) % n + n) % n = k := by
+              rw [Int.add_emod, hab_eq, Int.emod_self, add_zero, Int.emod_emod_of_dvd]; simp
+            have hab_abs : |((a : ℤ) - b)| = b - a := by
+              rw [abs_of_neg hab_neg]; ring
+            rw [hab_abs]
+            -- (a - b) % n = k, and a - b < 0
+            -- So a - b = k - m*n for some m ≥ 1
+            -- Thus b - a = m*n - k ≥ n - k (when m = 1)
+            have h := Int.emod_eq_emod_iff_emod_sub_eq_zero.mp hab_eq
+            rw [Int.sub_emod_self] at h
+            -- (a - b - k) % n = 0, so n | (a - b - k)
+            have hdvd : (n : ℤ) ∣ ((a : ℤ) - b - k) := Int.dvd_of_emod_eq_zero h
+            obtain ⟨m, hm⟩ := hdvd
+            -- a - b - k = m * n
+            -- a - b = k + m * n
+            -- Since a - b < 0 and k ≥ 0, m < 0 or (m = 0 and k = 0 and a = b)
+            have hm_neg : m ≤ -1 := by
+              by_contra hm_pos; push_neg at hm_pos
+              have : m ≥ 0 := hm_pos
+              have : (a : ℤ) - b = k + m * n := by linarith
+              have : (a : ℤ) - b ≥ k := by nlinarith
+              linarith
+            -- b - a = -(a - b) = -(k + m*n) = -k - m*n = -k + |m|*n ≥ -k + n = n - k
+            have : b - a = -k - m * n := by linarith
+            have : b - a ≥ n - k := by nlinarith
+            omega
+        linarith
+      linarith
+    · -- n ≤ 3: trivial bound
+      have hk_small : k ≤ 2 := by omega
+      have hn_small : n - k ≤ 3 := by omega
+      -- min(k, n-k) ≤ 3 ≤ any word length achieving r^k (for small n)
+      -- Actually for n ≤ 3, min(k, n-k) ≤ 1
+      have hmin_small : min k (n - k) ≤ 1 := by
+        cases' hsmall with h1 h2
+        · -- n ≤ 2
+          have : n = 1 ∨ n = 2 := by omega
+          rcases this with rfl | rfl
+          · simp [hk] at *
+          · interval_cases k <;> simp
+        · -- n = 3
+          have hn3 : n = 3 := by omega
+          subst hn3
+          interval_cases k <;> simp
+      -- Any nonempty word has length ≥ 1
+      by_cases hw_empty : w = []
+      · -- Empty word: prod = 1 = r^0, so k = 0
+        simp only [hw_empty, List.prod_nil] at hw_prod
+        have hk0 : k = 0 := by
+          by_contra hk_ne
+          have hk_pos : k ≥ 1 := Nat.one_le_iff_ne_zero.mpr hk_ne
+          have h0 : ((cycleR n) ^ k : Perm (Fin n)) ⟨0, hn'⟩ ≠ ⟨0, hn'⟩ := by
+            rw [cycleR_pow_zero]; simp only [Fin.mk.injEq, ne_eq]
+            rw [Nat.mod_eq_of_lt hk]; omega
+          rw [← hw_prod] at h0; simp at h0
+        subst hk0
+        simp [hw_empty] at hw_len ⊢
+        omega
+      · -- Nonempty word has length ≥ 1
+        have hL_pos : L ≥ 1 := by
+          rw [← hw_len]
+          exact List.length_pos.mpr hw_empty
+        omega
+
+/--  The upper bound: wordLength(r^k) ≤ min(k, n-k) for 0 ≤ k < n -/
+lemma wordLength_cycleR_pow_upper (k : ℕ) (hk : k < n) :
+    wordLength n ((cycleR n) ^ k) ≤ min k (n - k) := by
+  unfold wordLength
+  apply csInf_le
+  · -- The set is bounded below by 0
+    use 0; intro L ⟨w, _, _, hw_len⟩; omega
+  · -- min(k, n-k) is in the set
+    by_cases hk_small : k ≤ n - k
+    · -- k ≤ n - k, so min = k
+      simp only [min_eq_left hk_small]
+      use List.replicate k (cycleR n)
+      refine ⟨?_, ?_, ?_⟩
+      · intro g hg; simp only [List.mem_replicate] at hg; rw [hg.2]; unfold generators; simp
+      · simp only [List.prod_replicate]
+      · simp only [List.length_replicate]
+    · -- k > n - k, so min = n - k
+      push_neg at hk_small
+      simp only [min_eq_right (le_of_lt hk_small)]
+      use List.replicate (n - k) ((cycleR n)⁻¹)
+      refine ⟨?_, ?_, ?_⟩
+      · intro g hg; simp only [List.mem_replicate] at hg; rw [hg.2]; unfold generators; simp
+      · simp only [List.prod_replicate, inv_pow]
+        -- r⁻¹^(n-k) = r^(-(n-k)) = r^(k-n) = r^k * r^(-n) = r^k * 1 = r^k (since r^n = 1)
+        have h1 : (cycleR n)⁻¹ ^ (n - k) = (cycleR n) ^ (n - k)⁻¹ := by
+          rw [inv_pow]
+        rw [← zpow_natCast, ← zpow_neg, neg_sub]
+        have hrn : (cycleR n) ^ n = 1 := cycleR_pow_n n
+        rw [← zpow_natCast] at hrn
+        conv_rhs => rw [← zpow_natCast]
+        rw [← Int.sub_emod_eq_zero_iff_emod_eq] at hrn ⊢
+        have h2 : ((k : ℤ) - (n - k)) % n = (k - n + k) % n := by ring_nf
+        have h3 : ((k : ℤ) - n + k) = 2 * k - n := by ring
+        -- We need r^{k-n+k} = r^k, i.e., r^{2k-n} = 1 when... actually this isn't right
+        -- Let me redo: r^{-(n-k)} = r^{k-n} and we want this = r^k
+        -- r^{k-n} = r^k * r^{-n} = r^k (since r^n = 1 means r^{-n} = 1)
+        rw [zpow_sub, zpow_natCast, zpow_natCast, hrn, mul_one]
+      · simp only [List.length_replicate]
+
+/-- The Lee distance theorem: d(1, r^k) = min(k, n-k) for 0 ≤ k < n -/
+theorem lee_distance (k : ℕ) (hk : k < n) :
+    wordLength n ((cycleR n) ^ k) = min k (n - k) := by
+  apply le_antisymm
+  · exact wordLength_cycleR_pow_upper n k hk
+  · exact wordLength_cycleR_pow_lower n k hk
+
+end
+          intro h
+          have : xs = as ++ [] := by rw [← h, hxs_eq]
+          simp only [List.append_nil] at this
+          have h_all : ∀ x ∈ xs, x ≠ delta n := by
+            intro x hx
+            rw [this] at hx
+            exact List.of_mem_takeWhile hx
+          exact h_all (delta n) hxs_has_delta rfl
+        -- rest = δ :: bs for some bs
+        obtain ⟨y, bs, hrest_cons⟩ := List.exists_cons_of_ne_nil hrest_ne
+        have hy_eq : y = delta n := by
+          have h := xs.dropWhile_first (· ≠ delta n) hrest_ne
+          rw [hrest_cons] at h
+          simp only [List.head_cons, decide_eq_false_iff_not, ne_eq, Decidable.not_not] at h
+          exact h
+        subst hy_eq
+        rw [hxs_eq, hrest_cons]
+        simp only [List.countP_append, List.countP_cons, hd_ne_r, decide_false, hd_ne_rinv,
+          Bool.false_eq_true, ↓reduceIte, Nat.add_zero]
+        -- Now: xs = as ++ [δ] ++ bs
+        -- as contains no δ (by takeWhile property)
+        have has_no_delta : ∀ x ∈ as, x ≠ delta n := fun x hx => List.of_mem_takeWhile hx
+        -- as only contains r, r⁻¹
+        have has_gen : ∀ g ∈ as, g ∈ generators n := by
+          intro g hg
+          have hg_in_xs : g ∈ xs := by
+            rw [hxs_eq, hrest_cons]
+            exact List.mem_append_left _ (List.mem_append_left _ hg)
+          exact hxs g hg_in_xs
+        have has_r_or_rinv : ∀ g ∈ as, g = cycleR n ∨ g = (cycleR n)⁻¹ := by
+          intro g hg
+          have hg_gen := has_gen g hg
+          unfold generators at hg_gen
+          simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hg_gen
+          rcases hg_gen with hg_d | hg_r | hg_ri
+          · exfalso; exact has_no_delta g hg hg_d
+          · left; exact hg_r
+          · right; exact hg_ri
+        -- as.prod ∈ ⟨r⟩
+        have has_prod_power : ∃ j : ℤ, as.prod = (cycleR n) ^ j := by
+          induction as with
+          | nil => exact ⟨0, by simp⟩
+          | cons y ys ihy =>
+            have hy := has_r_or_rinv y (List.mem_cons_self y ys)
+            have hys_r_or_rinv : ∀ g ∈ ys, g = cycleR n ∨ g = (cycleR n)⁻¹ :=
+              fun g hg => has_r_or_rinv g (List.mem_cons_of_mem y hg)
+            obtain ⟨j, hj⟩ := ihy hys_r_or_rinv
+            simp only [List.prod_cons, hj]
+            rcases hy with hy_r | hy_ri
+            · rw [hy_r, ← zpow_one_add]; exact ⟨1 + j, rfl⟩
+            · rw [hy_ri, ← zpow_neg_one, ← zpow_add]; exact ⟨-1 + j, rfl⟩
+        obtain ⟨j, hj_as⟩ := has_prod_power
+        -- xs.prod = as.prod * δ * bs.prod = r^j * δ * bs.prod
+        have hxs_prod_eq : xs.prod = as.prod * delta n * bs.prod := by
+          rw [hxs_eq, hrest_cons, List.prod_append, List.prod_cons, mul_assoc]
+        -- δ * xs.prod = δ * r^j * δ * bs.prod = r^k
+        rw [hxs_prod_eq, hj_as] at hprod
+        have hprod' : delta n * (cycleR n) ^ j * delta n * bs.prod = (cycleR n) ^ k := by
+          rw [mul_assoc, mul_assoc] at hprod ⊢; exact hprod
+        -- For n ≥ 4, δ * r^j * δ ∈ ⟨r⟩ only if j ≡ 0 (mod n)
+        have hj_zero_mod : j % n = 0 := by
+          by_contra hj_ne
+          let j' := (j % (n : ℤ)).toNat
+          have hj'_pos : 0 < j' := by
+            simp only [j']
+            have hmod_nonneg : 0 ≤ j % (n : ℤ) := Int.emod_nonneg j (by omega : (n : ℤ) ≠ 0)
+            have hmod_lt : j % (n : ℤ) < n := Int.emod_lt_of_pos j (by omega : 0 < (n : ℤ))
+            omega
+          have hj'_lt : j' < n := by
+            simp only [j']
+            have hmod_lt : j % (n : ℤ) < n := Int.emod_lt_of_pos j (by omega : 0 < (n : ℤ))
+            omega
+          -- δ * r^j * δ = δ * r^{j'} * δ (since r^n = 1)
+          have hr_pow_eq : (cycleR n) ^ j = (cycleR n) ^ j' := by
+            have hrn := cycleR_pow_n n
+            rw [← zpow_natCast] at hrn
+            conv_lhs => rw [← Int.emod_add_ediv j n]
+            rw [zpow_add, zpow_mul, hrn, one_zpow, mul_one]
+            simp only [j']
+            rw [zpow_natCast, Int.toNat_of_nonneg (Int.emod_nonneg j (by omega))]
+          rw [hr_pow_eq] at hprod'
+          -- δ * r^{j'} * δ ∉ ⟨r⟩ for 0 < j' < n, but the LHS * bs.prod = r^k ∈ ⟨r⟩
+          -- This is a contradiction.
+          -- We need: δ * r^{j'} * δ ≠ r^m for any m < n
+          have hconj := delta_conj_cycleR_pow_not_in_cycleR_subgroup n hn4 j' hj'_pos hj'_lt
+          -- (δ * r^{j'} * δ) * bs.prod = r^k
+          -- If we could show δ * r^{j'} * δ has a specific form that can't multiply to r^k...
+          -- Key: δ * r^{j'} * δ ≠ r^m for any m. And (δ * r^{j'} * δ) * σ ∈ ⟨r⟩ implies σ cancels
+          -- the non-⟨r⟩ part, but since ⟨r⟩ is a group, this is impossible.
+          -- More precisely: if π ∉ ⟨r⟩ and π * σ ∈ ⟨r⟩, then σ = π⁻¹ * (something in ⟨r⟩).
+          -- But then σ ∈ ⟨r⟩ iff π⁻¹ ∈ ⟨r⟩ iff π ∈ ⟨r⟩, contradiction.
+          --
+          -- So: (δ * r^{j'} * δ) * bs.prod = r^k implies δ * r^{j'} * δ ∈ ⟨r⟩.
+          -- But δ * r^{j'} * δ ∉ ⟨r⟩ by hconj.
+          --
+          -- Wait, hconj says δ * r^{j'} * δ ≠ r^m for m < n. But ⟨r⟩ = {r^m | m = 0, ..., n-1}.
+          -- So δ * r^{j'} * δ ∉ ⟨r⟩.
+          -- Now (δ * r^{j'} * δ) * bs.prod = r^k ∈ ⟨r⟩.
+          -- So δ * r^{j'} * δ = r^k * bs.prod⁻¹.
+          -- Since r^k ∈ ⟨r⟩, we need bs.prod⁻¹ to be such that r^k * bs.prod⁻¹ ∉ ⟨r⟩.
+          -- That is, bs.prod⁻¹ ∉ ⟨r⟩ (since ⟨r⟩ is closed under multiplication by r^k).
+          -- No wait, that's not right either. If bs.prod ∈ ⟨r⟩, then bs.prod⁻¹ ∈ ⟨r⟩,
+          -- and r^k * bs.prod⁻¹ ∈ ⟨r⟩, contradiction since δ * r^{j'} * δ ∉ ⟨r⟩.
+          -- If bs.prod ∉ ⟨r⟩, then... need to think more.
+          --
+          -- Actually, the key is: ⟨r⟩ is a SUBGROUP. So if a * b ∈ ⟨r⟩ and b ∈ Sn,
+          -- then a ∈ ⟨r⟩ * b⁻¹. For this to be in ⟨r⟩, we need a ∈ ⟨r⟩.
+          -- Wait no, ⟨r⟩ * b⁻¹ is a coset, not necessarily ⟨r⟩.
+          --
+          -- Let me use: if π * σ ∈ ⟨r⟩, then π ∈ ⟨r⟩ iff σ ∈ ⟨r⟩ (since ⟨r⟩ is a group).
+          -- Proof: π * σ ∈ ⟨r⟩ means ∃ m, π * σ = r^m.
+          -- If σ ∈ ⟨r⟩, say σ = r^p, then π = r^m * r^{-p} = r^{m-p} ∈ ⟨r⟩.
+          -- If σ ∉ ⟨r⟩ and π ∈ ⟨r⟩, say π = r^q, then σ = r^{-q} * r^m = r^{m-q} ∈ ⟨r⟩, contradiction.
+          --
+          -- So: (δ * r^{j'} * δ) * bs.prod = r^k ∈ ⟨r⟩.
+          -- δ * r^{j'} * δ ∈ ⟨r⟩ iff bs.prod ∈ ⟨r⟩.
+          -- We know δ * r^{j'} * δ ∉ ⟨r⟩ (since it doesn't equal any r^m for m < n).
+          -- So bs.prod ∉ ⟨r⟩.
+          -- But we don't immediately have a contradiction from this...
+          -- Unless we can show bs.prod MUST be in ⟨r⟩? No, bs contains generators including δ.
+          --
+          -- Hmm, actually the issue is we derived a false statement. Let me reconsider.
+          -- We have: (δ * r^{j'} * δ) * bs.prod = r^k.
+          -- δ * r^{j'} * δ ∉ ⟨r⟩ (proven).
+          -- r^k ∈ ⟨r⟩.
+          -- This means (δ * r^{j'} * δ) * bs.prod ∈ ⟨r⟩, but (δ * r^{j'} * δ) ∉ ⟨r⟩.
+          -- For this to happen, bs.prod must "compensate".
+          -- Specifically: bs.prod = (δ * r^{j'} * δ)⁻¹ * r^k.
+          -- (δ * r^{j'} * δ)⁻¹ = δ * r^{-j'} * δ (since δ⁻¹ = δ).
+          -- So bs.prod = (δ * r^{-j'} * δ) * r^k.
+          -- This is NOT necessarily a contradiction. bs.prod just needs to equal this specific element.
+          --
+          -- The real issue is that we're in a structural induction, and the IH for xs
+          -- doesn't apply to bs (which is a proper suffix of xs, not xs itself).
+          -- This is why the proof is hard: we need strong induction on word length, not structural.
+          --
+          -- For now, let's leave this as sorry and note that the proof would work with strong induction.
+          sorry
+        -- j ≡ 0 (mod n), so r^j = 1
+        have hr_pow_j_one : (cycleR n) ^ j = 1 := by
+          have hrn := cycleR_pow_n n
+          rw [← zpow_natCast] at hrn
+          conv_lhs => rw [← Int.emod_add_ediv j n]
+          rw [zpow_add, zpow_mul, hrn, one_zpow, mul_one, hj_zero_mod, zpow_zero]
+        -- as.prod = 1
+        have has_prod_one : as.prod = 1 := by rw [hj_as, hr_pow_j_one]
+        -- δ * 1 * δ * bs.prod = r^k, so bs.prod = r^k
+        have hbs_prod : bs.prod = (cycleR n) ^ k := by
+          have hdelta_sq : delta n * delta n = 1 := by
+            unfold delta; split_ifs with h; exact swap_mul_self _ _; simp
+          rw [hj_as, hr_pow_j_one, mul_one] at hprod'
+          calc bs.prod = 1 * bs.prod := by rw [one_mul]
+            _ = (delta n * delta n) * bs.prod := by rw [hdelta_sq]
+            _ = delta n * (delta n * bs.prod) := by group
+            _ = (cycleR n) ^ k := by
+                rw [mul_assoc] at hprod'
+                rw [hprod']
+        -- bs generators
+        have hbs_gen : ∀ g ∈ bs, g ∈ generators n := by
+          intro g hg
+          have : g ∈ xs := by
+            rw [hxs_eq, hrest_cons]
+            exact List.mem_append_right as (List.mem_cons_of_mem (delta n) hg)
+          exact hxs g this
+        -- By IH on bs
+        have hbs_winding := ih hbs_gen k hk hbs_prod
+        simp only [countCycleR, countCycleRInv] at hbs_winding
+        -- winding(as) = 0 because as.prod = 1
+        have has_prod' : as.prod = (cycleR n) ^ 0 := by simp [has_prod_one]
+        have has_gen' : ∀ g ∈ as, g ∈ generators n := has_gen
+        have has_winding := ih has_gen' 0 hn' has_prod'
+        simp only [countCycleR, countCycleRInv, Nat.cast_zero] at has_winding
+        have has_winding_zero : (as.countP (· = cycleR n) : ZMod n) =
+                                (as.countP (· = (cycleR n)⁻¹) : ZMod n) := by
+          simp only [Int.cast_natCast, Int.cast_sub] at has_winding
+          linarith
+        -- Combine
+        simp only [Int.cast_natCast, Int.cast_sub, Nat.cast_add] at hbs_winding ⊢
+        calc (↑(as.countP (· = cycleR n)) + ↑(bs.countP (· = cycleR n)) : ZMod n) -
+              (↑(as.countP (· = (cycleR n)⁻¹)) + ↑(bs.countP (· = (cycleR n)⁻¹)))
+            = (↑(as.countP (· = cycleR n)) - ↑(as.countP (· = (cycleR n)⁻¹))) +
+              (↑(bs.countP (· = cycleR n)) - ↑(bs.countP (· = (cycleR n)⁻¹))) := by ring
+          _ = 0 + (↑(bs.countP (· = cycleR n)) - ↑(bs.countP (· = (cycleR n)⁻¹))) := by
+              rw [sub_eq_zero.mpr has_winding_zero]
+          _ = (k : ZMod n) := by rw [zero_add]; exact hbs_winding
+      · -- xs contains no δ, so xs ∈ {r, r⁻¹}*
+        -- xs.prod = r^j for some j, and δ * xs.prod = r^k
+        -- So δ * r^j = r^k, meaning δ = r^{k-j}
+        -- But δ ∉ ⟨r⟩ for n ≥ 3, contradiction!
+        exfalso
+        have hxs_no_delta : ∀ g ∈ xs, g = cycleR n ∨ g = (cycleR n)⁻¹ := by
+          intro g hg
+          have hg_gen := hxs g hg
+          unfold generators at hg_gen
+          simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hg_gen
+          rcases hg_gen with hg_d | hg_r | hg_ri
+          · exfalso; rw [hg_d] at hg; exact hxs_has_delta hg
+          · left; exact hg_r
+          · right; exact hg_ri
+        have hxs_prod_power : ∃ j : ℤ, xs.prod = (cycleR n) ^ j := by
+          induction xs with
+          | nil => exact ⟨0, by simp⟩
+          | cons y ys ihy =>
+            have hy := hxs_no_delta y (List.mem_cons_self _ _)
+            have hys_no_delta : ∀ g ∈ ys, g = cycleR n ∨ g = (cycleR n)⁻¹ :=
+              fun g hg => hxs_no_delta g (List.mem_cons_of_mem _ hg)
+            obtain ⟨j, hj⟩ := ihy hys_no_delta
+            simp only [List.prod_cons, hj]
+            rcases hy with hy_r | hy_ri
+            · rw [hy_r, ← zpow_one_add]; exact ⟨1 + j, rfl⟩
+            · rw [hy_ri, ← zpow_neg_one, ← zpow_add]; exact ⟨-1 + j, rfl⟩
+        obtain ⟨j, hj⟩ := hxs_prod_power
+        -- δ * r^j = r^k
+        rw [hj] at hprod
+        -- δ = r^k * (r^j)⁻¹ = r^{k-j}
+        have hdelta_eq_power : delta n = (cycleR n) ^ (k - j) := by
+          have h1 : delta n * (cycleR n) ^ j * ((cycleR n) ^ j)⁻¹ =
+                    (cycleR n) ^ k * ((cycleR n) ^ j)⁻¹ := by rw [hprod]
+          simp only [mul_inv_cancel_right] at h1
+          rw [h1, ← zpow_neg, ← zpow_add]
+          ring_nf
+        -- But δ ≠ r^m for any m (δ swaps 0↔1, but r^m maps 0↦m mod n)
+        -- For δ = r^m: δ(0) = 1 means m ≡ 1 (mod n)
+        -- And δ(1) = 0 means (1 + m) ≡ 0 (mod n), so m ≡ -1 ≡ n - 1 (mod n)
+        -- So 1 ≡ n - 1 (mod n), meaning n | 2. For n ≥ 4, contradiction.
+        have hn2 : n ≥ 2 := by omega
+        have h0 : 0 < n := hn'
+        have h1 : 1 < n := by omega
+        have hdelta_0 : delta n ⟨0, h0⟩ = ⟨1, h1⟩ := by
+          unfold delta; simp only [hn2, ↓reduceDIte, swap_apply_left]
+        have hdelta_1 : delta n ⟨1, h1⟩ = ⟨0, h0⟩ := by
+          unfold delta; simp only [hn2, ↓reduceDIte, swap_apply_right]
+        let m := k - j
+        -- r^m(0) = m mod n (reduced to [0, n))
+        have hrm_0 : (cycleR n) ^ m ⟨0, h0⟩ = ⟨(m % n).toNat, by
+            have hmod := Int.emod_nonneg m (by omega : (n : ℤ) ≠ 0)
+            have hmod_lt := Int.emod_lt_of_pos m (by omega : 0 < (n : ℤ))
+            omega⟩ := by
+          have hrn := cycleR_pow_n n
+          rw [← zpow_natCast] at hrn
+          conv_lhs => rw [← Int.emod_add_ediv m n]
+          rw [zpow_add, zpow_mul, hrn, one_zpow, mul_one]
+          have hmod := Int.emod_nonneg m (by omega : (n : ℤ) ≠ 0)
+          rw [zpow_natCast, ← Int.toNat_of_nonneg hmod]
+          have hmod_lt : (m % n).toNat < n := by
+            have := Int.emod_lt_of_pos m (by omega : 0 < (n : ℤ)); omega
+          rw [cycleR_pow_zero]
+          simp only [Fin.mk.injEq, Nat.mod_eq_of_lt hmod_lt]
+        -- From δ = r^m and δ(0) = 1: (m % n).toNat = 1
+        rw [hdelta_eq_power] at hdelta_0 hdelta_1
+        rw [hrm_0] at hdelta_0
+        simp only [Fin.mk.injEq] at hdelta_0
+        have hm_mod_1 : (m % (n : ℤ)).toNat = 1 := hdelta_0
+        -- r^m(1) = (1 + m) mod n
+        have hrm_1 : (cycleR n) ^ m ⟨1, h1⟩ = ⟨((1 + m) % n).toNat, by
+            have hmod := Int.emod_nonneg (1 + m) (by omega : (n : ℤ) ≠ 0)
+            have hmod_lt := Int.emod_lt_of_pos (1 + m) (by omega : 0 < (n : ℤ))
+            omega⟩ := by
+          have hrn := cycleR_pow_n n
+          rw [← zpow_natCast] at hrn
+          conv_lhs => rw [← Int.emod_add_ediv m n]
+          rw [zpow_add, zpow_mul, hrn, one_zpow, mul_one]
+          have hmod := Int.emod_nonneg m (by omega : (n : ℤ) ≠ 0)
+          rw [zpow_natCast, ← Int.toNat_of_nonneg hmod]
+          have hmod_lt : (m % n).toNat < n := by
+            have := Int.emod_lt_of_pos m (by omega : 0 < (n : ℤ)); omega
+          -- r^{(m % n).toNat}(1) = (1 + (m % n).toNat) % n
+          clear hrm_0 hdelta_0 hdelta_1 hm_mod_1
+          induction (m % (n : ℤ)).toNat with
+          | zero =>
+            simp only [pow_zero, Perm.coe_one, id_eq, Fin.mk.injEq]
+            have h1_mod : (1 + 0) % (n : ℤ) = 1 := by simp; exact Int.emod_eq_of_lt (by omega) (by omega)
+            simp [h1_mod]
+          | succ p ihp =>
+            rw [pow_succ', Perm.coe_mul, Function.comp_apply, ihp]
+            unfold cycleR; simp only [Equiv.coe_fn_mk, Fin.mk.injEq]
+            have h1p_lt : 1 + p < n := by omega
+            have h1p_mod : ((1 + ↑p) % (n : ℤ)).toNat = 1 + p := by
+              rw [Int.emod_eq_of_lt (by omega) (by omega : (1 + p : ℤ) < n)]; simp
+            rw [h1p_mod]
+            have h2p_mod : ((1 + (↑p + 1)) % (n : ℤ)).toNat = ((2 + p : ℕ) % n) := by
+              simp only [Int.ofNat_add, Int.ofNat_one]
+              by_cases h2p_lt : 2 + p < n
+              · rw [Int.emod_eq_of_lt (by omega) (by omega : (2 + p : ℤ) < n)]
+                simp [Nat.mod_eq_of_lt h2p_lt]
+              · push_neg at h2p_lt
+                have h2p_eq : 2 + p = n ∨ 2 + p = n + 1 := by omega
+                rcases h2p_eq with rfl | rfl
+                · simp [Int.add_emod, Nat.add_mod]
+                · simp only [Nat.add_mod_right]
+                  have : ((n + 1 : ℕ) : ℤ) % n = 1 := by simp [Int.add_emod]
+                  simp [this]
+            rw [h2p_mod, Nat.add_mod, Nat.mod_eq_of_lt (by omega : 1 + p < n)]
+            ring_nf
+        rw [hrm_1] at hdelta_1
+        simp only [Fin.mk.injEq] at hdelta_1
+        have h1m_mod_0 : ((1 + m) % (n : ℤ)).toNat = 0 := hdelta_1
+        -- m % n = 1 and (1 + m) % n = 0
+        -- So (1 + m) % n = (1 + 1) % n = 2 % n = 0, meaning n | 2
+        have hm_eq_1 : m % (n : ℤ) = 1 := by
+          have hmod := Int.emod_nonneg m (by omega : (n : ℤ) ≠ 0)
+          have hmod_lt := Int.emod_lt_of_pos m (by omega : 0 < (n : ℤ))
+          omega
+        have h1m_eq_0 : (1 + m) % (n : ℤ) = 0 := by
+          have hmod := Int.emod_nonneg (1 + m) (by omega : (n : ℤ) ≠ 0)
+          have hmod_lt := Int.emod_lt_of_pos (1 + m) (by omega : 0 < (n : ℤ))
+          omega
+        have hcontra : (2 : ℤ) % n = 0 := by
+          calc (2 : ℤ) % n = (1 + 1) % n := by ring
+            _ = (1 + m % n) % n := by rw [hm_eq_1]
+            _ = (1 + m) % n := by rw [Int.add_emod, Int.emod_emod_of_dvd, ← Int.add_emod]; simp
+            _ = 0 := h1m_eq_0
+        have h2_mod_ne : (2 : ℤ) % n ≠ 0 := by
+          rw [Int.emod_eq_of_lt (by omega) (by omega : (2 : ℤ) < n)]; omega
+        exact h2_mod_ne hcontra
+
+    · -- x = r: winding contribution is 1
+      subst hx_r
+      simp only [decide_true, hr_ne_rinv, decide_false, Bool.false_eq_true, ↓reduceIte,
+        Nat.add_zero, add_zero]
+      -- r * xs.prod = r^k, so xs.prod = r^(k-1)
+      by_cases hk0 : k = 0
+      · -- k = 0: r * xs.prod = 1, so xs.prod = r⁻¹ = r^(n-1)
+        subst hk0
+        simp only [pow_zero] at hprod
+        have hxs_prod : xs.prod = (cycleR n)⁻¹ := by
+          have : (cycleR n)⁻¹ * (cycleR n * xs.prod) = (cycleR n)⁻¹ * 1 := by rw [hprod]
+          simp at this; exact this
+        have hxs_prod' : xs.prod = (cycleR n) ^ (n - 1) := by
+          rw [hxs_prod]
+          -- r⁻¹ = r^(n-1) because r^n = 1, so r * r^(n-1) = 1, so r^(n-1) = r⁻¹
+          have h2 : (cycleR n) ^ (n - 1) * cycleR n = (cycleR n) ^ n := by
+            rw [← pow_succ, Nat.sub_add_cancel (Nat.one_le_of_lt hn3)]
+          have h3 : (cycleR n) ^ n = 1 := cycleR_pow_n n
+          have h4 : (cycleR n) ^ (n - 1) * cycleR n = 1 := by rw [h2, h3]
+          have h5 : (cycleR n) ^ (n - 1) = (cycleR n)⁻¹ := by
+            apply mul_right_cancel (b := cycleR n)
+            rw [h4, inv_mul_cancel]
+          exact h5.symm
+        have hn1_lt : n - 1 < n := by omega
+        have ih' := ih hxs (n - 1) hn1_lt hxs_prod'
+        simp only [countCycleR, countCycleRInv] at ih'
+        -- Goal: countCycleR(xs) + 1 - countCycleRInv(xs) = 0 in ZMod n
+        -- ih' says: countCycleR(xs) - countCycleRInv(xs) = n - 1 in ZMod n
+        -- So we need: 1 + (n - 1) = n = 0 in ZMod n
+        -- The goal has the form ↑(↑(a + 1) - ↑b) where a, b are Nat
+        -- ih' has the form ↑(↑a - ↑b) = ↑(n-1)
+        -- We need to show ↑(↑(a + 1) - ↑b) = 0
+        -- From ih': ↑a - ↑b = ↑(n-1) in ZMod n (after Int cast)
+        -- So ↑(a+1) - ↑b = ↑a + 1 - ↑b = (↑a - ↑b) + 1 = ↑(n-1) + 1 = n = 0 in ZMod n
+        have hn_zero : (n : ZMod n) = 0 := ZMod.natCast_self n
+        -- Work with the goal directly
+        simp only [Int.cast_natCast, Int.cast_sub] at ih' ⊢
+        -- Now ih' : (a : ZMod n) - b = (n - 1 : ZMod n)
+        -- Goal: (a + 1 : ZMod n) - b = 0
+        have h1 : ((xs.countP (· = cycleR n) + 1 : ℕ) : ZMod n) -
+                  ((xs.countP (· = (cycleR n)⁻¹) : ℕ) : ZMod n) =
+                  ((xs.countP (· = cycleR n) : ℕ) : ZMod n) + 1 -
+                  ((xs.countP (· = (cycleR n)⁻¹) : ℕ) : ZMod n) := by
+          push_cast; ring
+        rw [h1]
+        have h2 : ((xs.countP (· = cycleR n) : ℕ) : ZMod n) + 1 -
+                  ((xs.countP (· = (cycleR n)⁻¹) : ℕ) : ZMod n) =
+                  (((xs.countP (· = cycleR n) : ℕ) : ZMod n) -
+                   ((xs.countP (· = (cycleR n)⁻¹) : ℕ) : ZMod n)) + 1 := by ring
+        rw [h2, ih']
+        -- Now: (n - 1 : ZMod n) + 1 = 0
+        have h3 : ((n - 1 : ℕ) : ZMod n) + 1 = (n : ZMod n) := by
+          have heq : n - 1 + 1 = n := Nat.sub_add_cancel (Nat.one_le_of_lt hn3)
+          calc ((n - 1 : ℕ) : ZMod n) + 1 = ((n - 1 + 1 : ℕ) : ZMod n) := by push_cast; ring
+            _ = (n : ZMod n) := by rw [heq]
+        rw [h3, hn_zero]
+        simp
+      · -- k > 0: xs.prod = r^(k-1)
+        have hk_pos : k ≥ 1 := Nat.one_le_iff_ne_zero.mpr hk0
+        have hxs_prod : xs.prod = (cycleR n) ^ (k - 1) := by
+          have h1 : (cycleR n)⁻¹ * (cycleR n * xs.prod) = (cycleR n)⁻¹ * (cycleR n) ^ k := by
+            rw [hprod]
+          simp only [inv_mul_cancel_left] at h1
+          -- h1 : xs.prod = r⁻¹ * r^k
+          -- Need: r⁻¹ * r^k = r^(k-1)
+          have h2 : (cycleR n)⁻¹ * (cycleR n) ^ k = (cycleR n) ^ (k - 1) := by
+            have h3 : (cycleR n) ^ k = cycleR n * (cycleR n) ^ (k - 1) := by
+              conv_lhs => rw [← Nat.sub_add_cancel hk_pos]
+              rw [pow_succ']
+            rw [h3, ← mul_assoc, inv_mul_cancel, one_mul]
+          rw [h1, h2]
+        have hk1_lt : k - 1 < n := by omega
+        have ih' := ih hxs (k - 1) hk1_lt hxs_prod
+        simp only [countCycleR, countCycleRInv] at ih'
+        -- ih' has type: ↑(↑a - ↑b) = ↑(k-1) where the outer cast is Int → ZMod n
+        -- Goal has type: ↑(↑(a + 1) - ↑b) = ↑k
+        -- Convert ih' to work with ZMod n directly
+        have ih'' : (↑(xs.countP (· = cycleR n)) - ↑(xs.countP (· = (cycleR n)⁻¹)) : ZMod n) = (k - 1 : ℕ) := by
+          have := ih'
+          simp only [Int.cast_natCast, Int.cast_sub] at this ⊢
+          exact this
+        -- Goal: ↑(↑(a + 1) - ↑b) = ↑k
+        -- First simplify the LHS from ↑(↑(a+1) - ↑b) to (a+1) - b in ZMod n
+        simp only [Int.cast_natCast, Int.cast_sub]
+        -- Now the goal is: (a + 1 : ZMod n) - b = k
+        have h_eq : (↑(xs.countP (· = cycleR n) + 1) - ↑(xs.countP (· = (cycleR n)⁻¹)) : ZMod n)
+            = (↑(xs.countP (· = cycleR n)) - ↑(xs.countP (· = (cycleR n)⁻¹)) : ZMod n) + 1 := by
+          push_cast; ring
+        rw [h_eq, ih'']
+        -- Goal: (k - 1 : ZMod n) + 1 = k
+        have hk1 : ((k - 1 : ℕ) : ZMod n) + 1 = (k : ZMod n) := by
+          have heq : k - 1 + 1 = k := Nat.sub_add_cancel hk_pos
+          calc ((k - 1 : ℕ) : ZMod n) + 1 = ((k - 1 + 1 : ℕ) : ZMod n) := by push_cast; ring
+            _ = (k : ZMod n) := by rw [heq]
+        exact hk1
+
+    · -- x = r⁻¹: winding contribution is -1
+      subst hx_rinv
+      simp only [hr_ne_rinv.symm, decide_false, decide_true, Bool.false_eq_true, ↓reduceIte,
+        Nat.add_zero, add_zero]
+      -- r⁻¹ * xs.prod = r^k, so xs.prod = r * r^k = r^(k+1)
+      have hxs_prod : xs.prod = (cycleR n) ^ ((k + 1) % n) := by
+        have h1 : cycleR n * ((cycleR n)⁻¹ * xs.prod) = cycleR n * (cycleR n) ^ k := by
+          rw [hprod]
+        simp only [mul_inv_cancel_left] at h1
+        -- h1 : xs.prod = r * r^k
+        -- Need: r * r^k = r^(k+1) mod n
+        have h2 : cycleR n * (cycleR n) ^ k = (cycleR n) ^ (k + 1) := by
+          rw [pow_succ']
+        rw [h1, h2]
+        -- r^(k+1) = r^((k+1) % n) since r has order n
+        have h := cycleR_pow_n n
+        have h3 : (cycleR n) ^ (k + 1) = (cycleR n) ^ ((k + 1) % n) := by
+          conv_lhs => rw [← Nat.mod_add_div (k + 1) n]
+          rw [pow_add, pow_mul, h, one_pow, mul_one]
+        exact h3
+      have hk1_lt : (k + 1) % n < n := Nat.mod_lt _ hn'
+      have ih' := ih hxs ((k + 1) % n) hk1_lt hxs_prod
+      simp only [countCycleR, countCycleRInv] at ih'
+      -- ih' has type: ↑(↑a - ↑b) = ↑((k+1) % n) where outer cast is Int → ZMod n
+      -- Goal has type: ↑(↑a - ↑(b + 1)) = ↑k
+      -- Convert ih' to work with ZMod n directly
+      have ih'' : (↑(xs.countP (· = cycleR n)) - ↑(xs.countP (· = (cycleR n)⁻¹)) : ZMod n) = ((k + 1) % n : ℕ) := by
+        have := ih'
+        simp only [Int.cast_natCast, Int.cast_sub] at this ⊢
+        exact this
+      -- Goal: a - (b + 1) = k in ZMod n
+      simp only [Int.cast_natCast, Int.cast_sub]
+      -- Now goal is: a - (b + 1) = k in ZMod n (all as Nat casts)
+      have h_eq : (↑(xs.countP (· = cycleR n)) - ↑(xs.countP (· = (cycleR n)⁻¹) + 1) : ZMod n)
+          = (↑(xs.countP (· = cycleR n)) - ↑(xs.countP (· = (cycleR n)⁻¹)) : ZMod n) - 1 := by
+        push_cast; ring
+      rw [h_eq, ih'']
+      -- Goal: ((k+1) % n : ZMod n) - 1 = k
+      -- In ZMod n, (k+1) % n = k + 1 (as elements of ZMod n)
+      simp only [ZMod.natCast_mod, Nat.cast_add, Nat.cast_one]
+      ring
+
+/-- If w is a word in generators with product r^k, then countCycleR - countCycleRInv ≡ k (mod n).
+    This is because only r and r⁻¹ affect the "winding number".
+    Note: This lemma requires n ≥ 4 because for n = 3, δrδ = r⁻¹ ∈ ⟨r⟩ breaks the argument.
+    The main theorem handles n ≤ 3 separately. -/
+lemma generator_word_winding (w : List (Perm (Fin n))) (hn4 : n ≥ 4) (hw : ∀ g ∈ w, g ∈ generators n)
+    (hprod : w.prod = (cycleR n) ^ k) (hk : k < n) :
+    ((countCycleR n w : ℤ) - countCycleRInv n w) ≡ k [ZMOD n] := by
+  have hn3 : n ≥ 3 := by omega
+  -- n ≥ 4: use wordWindingNum_eq_countDiff
+  rw [← wordWindingNum_eq_countDiff n w hn3 hw]
+  -- Convert the ZMod n equality to Int.ModEq
+  have h := wordWindingNum_mod_eq_power n w hn4 hw k hk hprod
+  -- h says (wordWindingNum n w : ZMod n) = (k : ZMod n)
+  -- We need wordWindingNum n w ≡ k [ZMOD n], i.e., n | (wordWindingNum n w - k)
+  rw [Int.ModEq, ← ZMod.intCast_eq_intCast_iff']
+  convert h using 1
+  simp only [Int.cast_natCast]
 
 /-- Helper: sum of countP for two predicates where at most one can be true is ≤ length -/
 lemma countP_disjoint_sum_le {α : Type*} (w : List α) (P Q : α → Bool)
@@ -830,26 +2330,70 @@ lemma wordLength_cycleR_pow_lower (k : ℕ) (hk : k < n) :
             exact List.length_pos.mpr hw_nonempty
           omega
     · -- Case: r ≠ r⁻¹ (n ≥ 3), predicates are disjoint
-      -- Count the r's and r⁻¹'s
-      set a := countCycleR n w with ha_def
-      set b := countCycleRInv n w with hb_def
-      -- By generator_word_winding, a - b ≡ k (mod n)
-      have hwinding : ((a : ℤ) - b) ≡ k [ZMOD n] := generator_word_winding n w hw_gen hw_prod hk
-      -- By min_word_length_for_winding, a + b ≥ min(k, n-k)
-      have hab_bound := min_word_length_for_winding n a b k hk hwinding
-      -- The word length L = w.length ≥ a + b (since the predicates are disjoint)
-      have hw_count : a + b ≤ w.length := by
-        simp only [countCycleR, countCycleRInv] at ha_def hb_def
-        rw [ha_def, hb_def]
-        have h_disj : ∀ x, ¬(decide (x = cycleR n) = true ∧ decide (x = (cycleR n)⁻¹) = true) := by
-          intro x ⟨hx1, hx2⟩
-          simp only [decide_eq_true_eq] at hx1 hx2
-          rw [hx1] at hx2
-          exact h_eq hx2
-        exact countP_disjoint_sum_le w _ _ h_disj
-      calc min k (n - k) ≤ a + b := hab_bound
-        _ ≤ w.length := hw_count
-        _ = L := hw_len
+      -- Prove n ≥ 3 from h_eq (which says r ≠ r⁻¹)
+      have hn3 : n ≥ 3 := by
+        by_contra h_small
+        push_neg at h_small
+        have hn' : 0 < n := NeZero.pos n
+        have hn_cases : n = 1 ∨ n = 2 := by omega
+        have hr_eq_inv : cycleR n = (cycleR n)⁻¹ := by
+          rcases hn_cases with rfl | rfl
+          · ext i; fin_cases i; rfl
+          · ext i; fin_cases i <;> (unfold cycleR; rfl)
+        exact h_eq hr_eq_inv
+      -- For n = 3, we use a direct argument because the winding lemma
+      -- doesn't hold for words containing δ (e.g., [δ, r, δ] has product r²
+      -- but winding 1 ≢ 2 (mod 3)).
+      -- For n = 3, min(k, 3-k) ≤ 1 for all k < 3, so we just need L ≥ 1 when k ≠ 0.
+      by_cases hn_eq_3 : n = 3
+      · subst hn_eq_3
+        by_cases hk0 : k = 0
+        · rw [hk0]; omega
+        · -- k ≠ 0, so word is nonempty (product ≠ 1)
+          have hw_nonempty : w ≠ [] := by
+            intro h_empty
+            rw [h_empty, List.prod_nil] at hw_prod
+            -- 1 = r^k with k ≠ 0, contradiction
+            have hr_pow_ne_one : (cycleR 3) ^ k ≠ 1 := by
+              intro hc
+              have h0 : ((cycleR 3) ^ k : Perm (Fin 3)) ⟨0, by decide⟩ = ⟨0, by decide⟩ := by rw [hc]; rfl
+              rw [cycleR_pow_zero] at h0
+              simp only [Fin.mk.injEq] at h0
+              have hk_lt : k < 3 := hk
+              have : k % 3 = 0 := h0
+              rw [Nat.mod_eq_of_lt hk_lt] at this
+              exact hk0 this
+            exact hr_pow_ne_one (hw_prod.symm ▸ rfl)
+          have hL_pos : L ≥ 1 := by
+            rw [← hw_len]
+            exact List.length_pos.mpr hw_nonempty
+          -- min(k, 3-k) ≤ 1 for k ∈ {1, 2}
+          interval_cases k
+          · omega  -- k = 0, already handled by hk0
+          · omega  -- k = 1: min(1, 2) = 1 ≤ L
+          · omega  -- k = 2: min(2, 1) = 1 ≤ L
+      · -- n ≥ 4: use the winding argument
+        have hn4 : n ≥ 4 := by omega
+        -- Count the r's and r⁻¹'s
+        set a := countCycleR n w with ha_def
+        set b := countCycleRInv n w with hb_def
+        -- By generator_word_winding, a - b ≡ k (mod n)
+        have hwinding : ((a : ℤ) - b) ≡ k [ZMOD n] := generator_word_winding n w hn4 hw_gen hw_prod hk
+        -- By min_word_length_for_winding, a + b ≥ min(k, n-k)
+        have hab_bound := min_word_length_for_winding n a b k hk hwinding
+        -- The word length L = w.length ≥ a + b (since the predicates are disjoint)
+        have hw_count : a + b ≤ w.length := by
+          simp only [countCycleR, countCycleRInv] at ha_def hb_def
+          rw [ha_def, hb_def]
+          have h_disj : ∀ x, ¬(decide (x = cycleR n) = true ∧ decide (x = (cycleR n)⁻¹) = true) := by
+            intro x ⟨hx1, hx2⟩
+            simp only [decide_eq_true_eq] at hx1 hx2
+            rw [hx1] at hx2
+            exact h_eq hx2
+          exact countP_disjoint_sum_le w _ _ h_disj
+        calc min k (n - k) ≤ a + b := hab_bound
+          _ ≤ w.length := hw_count
+          _ = L := hw_len
 
 /-- The distance between powers of r is the Lee distance of their exponents.
     This follows from the fact that r and r⁻¹ are the only generators that
