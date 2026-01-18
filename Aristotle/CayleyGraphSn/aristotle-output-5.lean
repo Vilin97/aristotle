@@ -75,7 +75,7 @@ If you add the comment "-- Harmonic `generalize_proofs` tactic" to your file, we
   building on the basic definitions and Lee distance theorem from CayleyGraphSn.lean.
 -/
 
-import Aristotle.CayleyGraphSn.CayleyGraphSn
+import Aristotle.CayleyGraphSn.lemma_1
 
 
 import Mathlib.Tactic.GeneralizeProofs
