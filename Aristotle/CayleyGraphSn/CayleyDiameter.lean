@@ -27,9 +27,25 @@ def cycleR : Perm (Fin n) := Equiv.addRight 1
 /-- The full reversal s = [n n-1 ... 1] -/
 def reversal : Perm (Fin n) := Fin.revPerm
 
+/-- The generating set S = {δ, r, r⁻¹} for the Cayley graph -/
+def generatingSet : Set (Perm (Fin n)) :=
+  {delta n, cycleR n, (cycleR n)⁻¹}
+
+/-- A word in the generators is a list of elements from S -/
+abbrev Word (n : ℕ) [NeZero n] := List (Perm (Fin n))
+
+/-- A word is valid if all its elements are in the generating set -/
+def Word.valid (w : Word n) : Prop :=
+  ∀ g ∈ w, g ∈ generatingSet n
+
+/-- Evaluate a word to the corresponding permutation -/
+def Word.eval (w : Word n) : Perm (Fin n) :=
+  w.foldl (· * ·) 1
+
 /-- Distance in the Cayley graph Γ of Sₙ with generators δ, r, r⁻¹.
-    This is the length of the shortest word in {δ, r, r⁻¹} representing the permutation. -/
-noncomputable def cayleyDist (π₁ π₂ : Perm (Fin n)) : ℕ := sorry
+    This is the length of the shortest word in {δ, r, r⁻¹} that equals π₁⁻¹ * π₂. -/
+noncomputable def cayleyDist (π₁ π₂ : Perm (Fin n)) : ℕ :=
+  sInf { k | ∃ w : Word n, w.valid ∧ w.eval = π₁⁻¹ * π₂ ∧ w.length = k }
 
 /-- The orbit of π under the action of ⟨r⟩ -/
 def orbit (π : Perm (Fin n)) : Set (Perm (Fin n)) :=
